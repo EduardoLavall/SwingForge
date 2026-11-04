@@ -156,8 +156,9 @@ public final class Generator {
         files.put("build.xml",buildXml(spec));
         files.put(".gitignore","build/\ndist/\nnbproject/private/\nlib/*.jar\n.swinforge/\n.swingforge/\n"+
            "test/\ntests/\n*.log\n.env\n.env.*\n.idea/\n.vscode/\n");
-        files.put("lib/DRIVER_MYSQL.txt","Copie o mysql-connector-j-*.jar nesta pasta.\n"+
-            "O projeto funciona offline com MySQL local, mas o driver JDBC deve estar disponivel previamente.\n");
+        files.put("lib/DRIVER_MYSQL.txt","O projeto usa MySQL Connector/J 8.1.0 (arquivo fornecido pelo professor).\n"+
+            "O SwingForge copia o JAR original para esta pasta quando ele estiver disponivel.\n"+
+            "Se lib/mysql-connector-j-8.1.0.jar estiver ausente, importe o ZIP no SwingForge.\n");
         String mainSource="src/"+spec.pkg.replace('.', '/')+"/Main.java";
         files.put("run.bat", "@echo off\r\nsetlocal EnableExtensions\r\ncd /d \"%~dp0\"\r\n"+
             "if exist \"tools\\ant\\bin\\ant.bat\" (call \"tools\\ant\\bin\\ant.bat\" run & goto :end)\r\n"+
@@ -188,7 +189,7 @@ public final class Generator {
         if(Files.isRegularFile(previousList)){
             for(String line:Files.readAllLines(previousList,StandardCharsets.UTF_8)){
                 String pathName=line.trim();
-                if(pathName.isEmpty()||generated.containsKey(pathName))continue;
+                if(pathName.isEmpty()||generated.containsKey(pathName)||pathName.equals("lib/"+MysqlDriver.NAME))continue;
                 Path old=root.resolve(pathName).normalize();
                 if(!old.startsWith(root)||!Files.isRegularFile(old))continue;
                 Path backup=backups.resolve(pathName);Files.createDirectories(backup.getParent());
@@ -210,8 +211,12 @@ public final class Generator {
             }
             Files.write(path,entry.getValue().getBytes(StandardCharsets.UTF_8));count++;
         }
+        // O JDBC e um binario: copiar o arquivo oficial em vez de gerar um JAR vazio.
+        boolean jdbc = MysqlDriver.copyTo(root, backups);
+        java.util.List<String> tracked = new java.util.ArrayList<String>(generated.keySet());
+        if (jdbc) tracked.add("lib/" + MysqlDriver.NAME);
         Files.createDirectories(previousList.getParent());
-        Files.write(previousList,generated.keySet(),StandardCharsets.UTF_8);
-        return count;
+        Files.write(previousList,tracked,StandardCharsets.UTF_8);
+        return count + (jdbc ? 1 : 0);
     }
 }
