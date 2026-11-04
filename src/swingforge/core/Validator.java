@@ -27,7 +27,7 @@ public final class Validator {
         if (s.entities.isEmpty()) throw new IllegalArgumentException("Adicione ao menos uma entidade.");
         Set<String> classes = new HashSet<String>();
         Set<String> generatedClasses = new HashSet<String>(Arrays.asList(
-            "main", "conexao", "registro", "opcao", "cruddao", "painelcrud", "telaprincipal"));
+            "main", "conexao", "registro", "opcao", "cruddao", "painelcrud", "telaprincipal", "entidade"));
         Set<String> tables = new HashSet<String>();
         for (Spec.Entity e : s.entities) {
             identifier(e.name, "Entidade");

@@ -25,6 +25,9 @@ public final class Generator {
         if("Booleano".equals(type))return "Boolean";
         return "String";
     }
+    private static String tipoCampo(Spec.Field f) {
+        return "Relacao".equals(f.type) ? f.reference : javaType(f.type);
+    }
     private static String sqlType(String type){
         if("Inteiro".equals(type)||"Relacao".equals(type))return "INT";
         if("Decimal".equals(type))return "DECIMAL(12,2)";
@@ -50,17 +53,17 @@ public final class Generator {
     public static String bean(Spec spec, Spec.Entity e) {
         StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(".beans;\n\n");
         b.append("/** Modelo de dados da entidade ").append(e.name).append(". */\n")
-            .append("public class ").append(e.name).append(" {\n")
+            .append("public class ").append(e.name).append(" implements Entidade {\n")
             .append("    private Integer id;\n");
         for (Spec.Field f : e.fields) {
-            b.append("    private ").append(javaType(f.type)).append(' ').append(f.name).append(";\n");
+            b.append("    private ").append(tipoCampo(f)).append(' ').append(f.name).append(";\n");
         }
         b.append("\n    public ").append(e.name).append("() {\n    }\n\n");
         b.append("    public ").append(e.name).append("(");
         for (int i = 0; i < e.fields.size(); i++) {
             Spec.Field f = e.fields.get(i);
             if (i > 0) b.append(", ");
-            b.append(javaType(f.type)).append(' ').append(f.name);
+            b.append(tipoCampo(f)).append(' ').append(f.name);
         }
         b.append(") {\n");
         for (Spec.Field f : e.fields) {
@@ -71,13 +74,23 @@ public final class Generator {
             .append("    public void setId(Integer id) {\n        this.id = id;\n    }\n");
         for (Spec.Field f : e.fields) {
             String label = upper(f.name);
-            String type = javaType(f.type);
+            String type = tipoCampo(f);
             b.append("\n    public ").append(type).append(" get").append(label)
                 .append("() {\n        return ").append(f.name).append(";\n    }\n\n")
                 .append("    public void set").append(label).append('(').append(type).append(' ')
                 .append(f.name).append(") {\n        this.").append(f.name).append(" = ")
                 .append(f.name).append(";\n    }\n");
         }
+        String display = Spec.label(e);
+        b.append("\n    @Override\n    public String toString() {\n        return ")
+            .append("id".equals(display) ? "id == null ? \"\" : String.valueOf(id)" : display + " == null ? \"\" : String.valueOf(" + display + ")")
+            .append(";\n    }\n\n")
+            .append("    @Override\n    public boolean equals(Object outro) {\n")
+            .append("        if (this == outro) return true;\n")
+            .append("        if (!(outro instanceof ").append(e.name).append(")) return false;\n")
+            .append("        ").append(e.name).append(" entidade = (").append(e.name).append(") outro;\n")
+            .append("        return id != null && id.equals(entidade.id);\n    }\n\n")
+            .append("    @Override\n    public int hashCode() {\n        return id == null ? 0 : id.hashCode();\n    }\n");
         b.append("\n    public Object[] obterDados() {\n        return new Object[] {");
         for (int i = 0; i < e.fields.size(); i++) {
             if (i > 0) b.append(", ");
@@ -85,19 +98,162 @@ public final class Generator {
         }
         return b.append("};\n    }\n}\n").toString();
     }
+    private static String conversao(Spec.Field f, String valor) {
+        if ("Inteiro".equals(f.type)) return "numeroInteiro(" + valor + ")";
+        if ("Decimal".equals(f.type)) return "numeroDecimal(" + valor + ")";
+        if ("Data".equals(f.type)) return "dataLocal(" + valor + ")";
+        if ("Booleano".equals(f.type)) return "valorBooleano(" + valor + ")";
+        return valor + " == null ? null : String.valueOf(" + valor + ")";
+    }
+    private static String consultaDAO(Spec spec, Spec.Entity e) {
+        StringBuilder select=new StringBuilder("SELECT t.id"), joins=new StringBuilder();
+        List<String> filtros=new java.util.ArrayList<String>();
+        for(int i=0;i<e.fields.size();i++){
+            Spec.Field f=e.fields.get(i);select.append(", t.`").append(f.name).append("`");
+            if("Relacao".equals(f.type)){
+                String label=Spec.label(find(spec,f.reference));
+                select.append(", r").append(i).append(".`").append(label).append("` AS __rotulo_").append(i);
+                joins.append(" LEFT JOIN `").append(Spec.table(f.reference)).append("` r").append(i)
+                    .append(" ON r").append(i).append(".id = t.`").append(f.name).append("`");
+                filtros.add("LOWER(COALESCE(r"+i+".`"+label+"`, '')) LIKE ?");
+            }else if("Texto".equals(f.type)) filtros.add("LOWER(t.`"+f.name+"`) LIKE ?");
+        }
+        String base=select.append(" FROM `").append(Spec.table(e.name)).append("` t").append(joins).toString();
+        String filter=String.join(" OR ",filtros);
+        StringBuilder b=new StringBuilder("    @Override\n    public List<Registro> listar(String busca) throws SQLException {\n")
+            .append("        List<Registro> resultados = new ArrayList<Registro>();\n")
+            .append("        String sql = ").append(q(base)).append(";\n")
+            .append("        boolean pesquisar = ").append(filtros.isEmpty()?"false":"busca != null && !busca.trim().isEmpty()").append(";\n");
+        if(!filtros.isEmpty())b.append("        if (pesquisar) sql += ").append(q(" WHERE "+filter)).append(";\n");
+        b.append("        sql += \" ORDER BY t.id DESC\";\n")
+            .append("        try (Connection conexao = Conexao.abrir();\n")
+            .append("                PreparedStatement comando = conexao.prepareStatement(sql)) {\n");
+        if(!filtros.isEmpty()) {
+            b.append("            if (pesquisar) {\n");
+            for(int i=0;i<filtros.size();i++)b.append("                comando.setString(").append(i+1).append(", \"%\" + busca.trim().toLowerCase(java.util.Locale.ROOT) + \"%\");\n");
+            b.append("            }\n");
+        }
+        b.append("            try (ResultSet rs = comando.executeQuery()) {\n")
+            .append("                while (rs.next()) {\n")
+            .append("                    Object[] dados = new Object[").append(e.fields.size()).append("];\n")
+            .append("                    String[] exibicao = new String[").append(e.fields.size()).append("];\n");
+        for(int i=0;i<e.fields.size();i++){
+            Spec.Field f=e.fields.get(i);b.append("                    dados[").append(i).append("] = rs.getObject(").append(q(f.name)).append(");\n")
+                .append("                    exibicao[").append(i).append("] = rs.getString(").append(q("Relacao".equals(f.type)?"__rotulo_"+i:f.name)).append(");\n")
+                .append("                    if (exibicao[").append(i).append("] == null) exibicao[").append(i).append("] = \"\";\n");
+        }
+        return b.append("                    resultados.add(new Registro(rs.getInt(\"id\"), dados, exibicao));\n")
+            .append("                }\n            }\n        }\n        return resultados;\n    }\n\n").toString();
+    }
+    private static String gravarDAO(Spec.Entity e, boolean editar) {
+        StringBuilder colunas=new StringBuilder(), marcas=new StringBuilder(), updates=new StringBuilder();
+        for(Spec.Field f:e.fields){
+            if(colunas.length()>0){colunas.append(", ");marcas.append(", ");updates.append(", ");}
+            colunas.append('`').append(f.name).append('`');marcas.append('?');updates.append('`').append(f.name).append("` = ?");
+        }
+        String sql=editar?"UPDATE `"+Spec.table(e.name)+"` SET "+updates+" WHERE id = ?":
+            "INSERT INTO `"+Spec.table(e.name)+"` ("+colunas+") VALUES ("+marcas+")";
+        StringBuilder b=new StringBuilder("    public void ").append(editar?"atualizar":"inserir").append('(').append(e.name).append(" item) throws SQLException {\n");
+        if(editar)b.append("        if (item.getId() == null) throw new IllegalArgumentException(\"Informe o ID para atualizar.\");\n");
+        b.append("        Object[] dados = validarEntrada(valores(item));\n")
+            .append("        String sql = ").append(q(sql)).append(";\n")
+            .append("        try (Connection conexao = Conexao.abrir();\n")
+            .append("                PreparedStatement comando = conexao.prepareStatement(sql)) {\n");
+        for(int i=0;i<e.fields.size();i++){
+            Spec.Field f=e.fields.get(i);String type=f.type;String sqlType="Texto".equals(type)?"VARCHAR":"Decimal".equals(type)?"DECIMAL":"Data".equals(type)?"DATE":"Booleano".equals(type)?"BOOLEAN":"INTEGER";
+            String setter="Texto".equals(type)?"setString":"Decimal".equals(type)?"setBigDecimal":"Data".equals(type)?"setDate":"Booleano".equals(type)?"setBoolean":"setInt";
+            String cast="Texto".equals(type)?"(String) ":"Decimal".equals(type)?"(java.math.BigDecimal) ":"Data".equals(type)?"java.sql.Date.valueOf((java.time.LocalDate) ":"Booleano".equals(type)?"(Boolean) ":"(Integer) ";
+            b.append("            if (dados[").append(i).append("] == null) comando.setNull(").append(i+1).append(", Types.").append(sqlType).append(");\n")
+                .append("            else comando.").append(setter).append('(').append(i+1).append(", ").append(cast).append("dados[").append(i).append(']');
+            if("Data".equals(type))b.append(')');
+            b.append(");\n");
+        }
+        if(editar)b.append("            comando.setInt(").append(e.fields.size()+1).append(", item.getId());\n");
+        return b.append("            comando.executeUpdate();\n        }\n    }\n\n").toString();
+    }
     public static String dao(Spec spec, Spec.Entity e) {
-        return "package " + spec.pkg + ".dao;\n\n"
-            + "/** CRUD SQL da entidade " + e.name + ". */\n"
-            + "public final class " + e.name + "DAO extends CrudDAO {\n"
-            + "    public " + e.name + "DAO() {\n"
-            + "        super(\n"
-            + "            " + q(Spec.table(e.name)) + ",\n"
-            + "            " + arrFields(e, 0, spec) + ",\n"
-            + "            " + arrFields(e, 1, spec) + ",\n"
-            + "            " + arrFields(e, 2, spec) + ",\n"
-            + "            " + arrFields(e, 3, spec) + ",\n"
-            + "            " + bools(e) + ");\n"
-            + "    }\n}\n";
+        StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(".dao;\n\n")
+            .append("import ").append(spec.pkg).append(".beans.*;\n")
+            .append("import ").append(spec.pkg).append(".conexao.Conexao;\n")
+            .append("import java.sql.*;\nimport java.util.ArrayList;\nimport java.util.List;\n\n")
+            .append("/** Acesso aos dados de ").append(e.name).append(". */\n")
+            .append("public final class ").append(e.name).append("DAO extends CrudDAO {\n")
+            .append("    public ").append(e.name).append("DAO() {\n        super(\n")
+            .append("            ").append(q(Spec.table(e.name))).append(",\n")
+            .append("            ").append(arrFields(e,0,spec)).append(",\n")
+            .append("            ").append(arrFields(e,1,spec)).append(",\n")
+            .append("            ").append(arrFields(e,2,spec)).append(",\n")
+            .append("            ").append(arrFields(e,3,spec)).append(",\n")
+            .append("            ").append(bools(e)).append(");\n    }\n\n")
+            .append(consultaDAO(spec,e))
+            .append("    /** Consulta e transforma os resultados em objetos da entidade. */\n")
+            .append("    public List<").append(e.name).append("> listarEntidades(String busca) throws SQLException {\n")
+            .append("        List<").append(e.name).append("> lista = new ArrayList<").append(e.name).append(">();\n")
+            .append("        for (Registro registro : listar(busca)) {\n")
+            .append("            ").append(e.name).append(" item = new ").append(e.name).append("();\n")
+            .append("            item.setId(registro.id);\n");
+        for (int i = 0; i < e.fields.size(); i++) {
+            Spec.Field f=e.fields.get(i);String setter="set"+upper(f.name);String value="registro.valores["+i+"]";
+            if ("Relacao".equals(f.type)) {
+                Spec.Entity target=find(spec,f.reference);String label=Spec.label(target);
+                b.append("            if (").append(value).append(" != null) {\n")
+                    .append("                ").append(f.reference).append(" relacionado = new ").append(f.reference).append("();\n")
+                    .append("                relacionado.setId(numeroInteiro(").append(value).append("));\n");
+                if (!"id".equals(label)) b.append("                relacionado.set").append(upper(label)).append("(registro.exibicao[").append(i).append("]);\n");
+                b.append("                item.").append(setter).append("(relacionado);\n            }\n");
+            } else b.append("            item.").append(setter).append("(").append(conversao(f,value)).append(");\n");
+        }
+        b.append("            lista.add(item);\n        }\n        return lista;\n    }\n\n")
+            .append("    @Override\n    public List<Registro> listarRegistros(String busca) throws SQLException {\n")
+            .append("        List<Registro> resultado = new ArrayList<Registro>();\n")
+            .append("        for (").append(e.name).append(" item : listarEntidades(busca)) {\n")
+            .append("            Object[] dados = valores(item);\n")
+            .append("            String[] exibicao = new String[] {");
+        for (int i=0;i<e.fields.size();i++) {
+            Spec.Field f=e.fields.get(i);String getter="item.get"+upper(f.name)+"()";
+            if(i>0)b.append(", ");
+            b.append(getter).append(" == null ? \"\" : String.valueOf(").append(getter).append(")");
+        }
+        b.append("};\n            resultado.add(new Registro(item.getId(), dados, exibicao));\n")
+            .append("        }\n        return resultado;\n    }\n\n")
+            .append("    @Override\n    public void salvar(Integer id, Object[] entrada) throws SQLException {\n")
+            .append("        Object[] dados = validarEntrada(entrada);\n")
+            .append("        ").append(e.name).append(" item = new ").append(e.name).append("();\n")
+            .append("        item.setId(id);\n");
+        for (int i=0;i<e.fields.size();i++) {
+            Spec.Field f=e.fields.get(i);String setter="set"+upper(f.name);
+            if("Relacao".equals(f.type)) {
+                b.append("        if (dados[").append(i).append("] != null) {\n")
+                    .append("            ").append(f.reference).append(" relacionado = new ").append(f.reference).append("();\n")
+                    .append("            relacionado.setId((Integer) dados[").append(i).append("]);\n")
+                    .append("            item.").append(setter).append("(relacionado);\n        }\n");
+            } else b.append("        item.").append(setter).append("((").append(tipoCampo(f)).append(") dados[").append(i).append("]);\n");
+        }
+        b.append("        if (id == null) inserir(item); else atualizar(item);\n    }\n\n")
+            .append(gravarDAO(e,false))
+            .append(gravarDAO(e,true))
+            .append("    @Override\n    public void excluir(int id) throws SQLException {\n")
+            .append("        String sql = ").append(q("DELETE FROM `"+Spec.table(e.name)+"` WHERE id = ?")).append(";\n")
+            .append("        try (Connection conexao = Conexao.abrir();\n")
+            .append("                PreparedStatement comando = conexao.prepareStatement(sql)) {\n")
+            .append("            comando.setInt(1, id);\n            comando.executeUpdate();\n        }\n    }\n\n")
+            .append("    private Object[] valores(").append(e.name).append(" item) {\n")
+            .append("        return new Object[] {");
+        for (int i=0;i<e.fields.size();i++) {
+            Spec.Field f=e.fields.get(i);String getter="item.get"+upper(f.name)+"()";
+            if(i>0)b.append(", ");
+            b.append("Relacao".equals(f.type)?getter+" == null ? null : "+getter+".getId()":getter);
+        }
+        b.append("};\n    }\n");
+        java.util.Set<String> refs=new java.util.LinkedHashSet<String>();
+        for(Spec.Field f:e.fields)if("Relacao".equals(f.type))refs.add(f.reference);
+        if(!refs.isEmpty()) {
+            b.append("\n    @Override\n    public List<Entidade> opcoes(String tabela, String rotulo) throws SQLException {\n");
+            for(String ref:refs)b.append("        if (").append(q(Spec.table(ref))).append(".equals(tabela)) return new ArrayList<Entidade>(new ")
+                .append(ref).append("DAO().listarEntidades(\"\"));\n");
+            b.append("        return super.opcoes(tabela, rotulo);\n    }\n");
+        }
+        return b.append("}\n").toString();
     }
     /** Ordenacao e rotulos independentes dos campos SQL, configurados no GUI Editor. */
     private static String arrayOf(List<String> values){
@@ -132,7 +288,7 @@ public final class Generator {
         FormDesign.normalize(e);
         StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(".telas;\n\n")
             .append("import ").append(spec.pkg).append(".dao.").append(e.name).append("DAO;\n")
-            .append("import ").append(spec.pkg).append(".dao.Opcao;\n")
+            .append("import ").append(spec.pkg).append(".beans.").append("Entidade;\n")
             .append("import javax.swing.*;\n\n")
             .append("/** Cadastro de ").append(e.name).append(" com formulario e tabela. */\n")
             .append("public final class Tela").append(e.name).append(" extends PainelCrud {\n")
@@ -154,7 +310,7 @@ public final class Generator {
             String var;
             if ("Relacao".equals(f.type)) {
                 var = "cmb" + suffix;
-                b.append("        JComboBox<Opcao> ").append(var).append(" = new JComboBox<Opcao>();\n");
+                b.append("        JComboBox<Entidade> ").append(var).append(" = new JComboBox<Entidade>();\n");
             } else if ("Check".equals(u.widget)) {
                 var = "chk" + suffix;
                 b.append("        JCheckBox ").append(var).append(" = new JCheckBox(\"Sim\");\n");
@@ -256,6 +412,7 @@ public final class Generator {
         for(String name:new String[] {"conexao/Conexao.java","dao/Registro.java","dao/Opcao.java","dao/CrudDAO.java",
             "telas/PainelCrud.java","conexao/PrepararBanco.java"})addTemplate(files,spec,name,src+name);
         StringBuilder tabs=new StringBuilder();
+        files.put(src+"beans/Entidade.java", "package "+spec.pkg+".beans;\n\npublic interface Entidade {\n    Integer getId();\n}\n");
         for(Spec.Entity e:spec.entities){
             files.put(src+"beans/"+e.name+".java",bean(spec,e));
             files.put(src+"dao/"+e.name+"DAO.java",dao(spec,e));

@@ -1,6 +1,8 @@
 package __PACKAGE__.dao;
 
-public final class Opcao {
+import __PACKAGE__.beans.Entidade;
+
+public final class Opcao implements Entidade {
     public final int id;
     public final String nome;
 
@@ -8,6 +10,9 @@ public final class Opcao {
         this.id = id;
         this.nome = nome;
     }
+
+    @Override
+    public Integer getId() { return id; }
 
     @Override
     public String toString() {

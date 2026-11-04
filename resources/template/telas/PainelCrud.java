@@ -1,6 +1,7 @@
 package __PACKAGE__.telas;
 
 import __PACKAGE__.dao.CrudDAO;
+import __PACKAGE__.beans.Entidade;
 import __PACKAGE__.dao.Opcao;
 import __PACKAGE__.dao.Registro;
 
@@ -107,7 +108,7 @@ public class PainelCrud extends JPanel {
 
     public void carregar() {
         try {
-            List<Registro> atualizados = dao.listar(busca.getText());
+            List<Registro> atualizados = dao.listarRegistros(busca.getText());
             limpar();
             carregarOpcoes();
             registros = atualizados;
@@ -130,7 +131,7 @@ public class PainelCrud extends JPanel {
     public void atualizarSemLimpar() {
         try {
             carregarOpcoes();
-            List<Registro> atualizados = dao.listar(busca.getText());
+            List<Registro> atualizados = dao.listarRegistros(busca.getText());
             atualizandoTabela = true;
             try {
                 registros = atualizados;
@@ -157,21 +158,21 @@ public class PainelCrud extends JPanel {
         for (int i = 0; i < inputs.length; i++)
             if (inputs[i] instanceof JComboBox && "Relacao".equals(dao.tipos[i])) {
                 @SuppressWarnings("unchecked")
-                JComboBox<Opcao> cb = (JComboBox<Opcao>) inputs[i];
+                JComboBox<Entidade> cb = (JComboBox<Entidade>) inputs[i];
                 Integer previous =
-                        cb.getSelectedItem() instanceof Opcao
-                                ? ((Opcao) cb.getSelectedItem()).id
+                        cb.getSelectedItem() instanceof Entidade
+                                ? ((Entidade) cb.getSelectedItem()).getId()
                                 : null;
                 cb.removeAllItems();
                 cb.addItem(
                         new Opcao(
                                 0,
                                 dao.obrigatorios[i] ? "Selecione uma opcao" : "(Nao selecionado)"));
-                for (Opcao op : dao.opcoes(dao.tabelasRelacionadas[i], dao.rotulosRelacionados[i]))
+                for (Entidade op : dao.opcoes(dao.tabelasRelacionadas[i], dao.rotulosRelacionados[i]))
                     cb.addItem(op);
                 if (previous != null)
                     for (int x = 0; x < cb.getItemCount(); x++)
-                        if (cb.getItemAt(x).id == previous) {
+                        if (previous.equals(cb.getItemAt(x).getId())) {
                             cb.setSelectedIndex(x);
                             break;
                         }
@@ -191,8 +192,9 @@ public class PainelCrud extends JPanel {
                 values[i] = Boolean.toString(((JCheckBox) c).isSelected());
             else if (c instanceof JComboBox) {
                 Object selected = ((JComboBox<?>) c).getSelectedItem();
-                if (selected instanceof Opcao) {
-                    int id = ((Opcao) selected).id;
+                if (selected instanceof Entidade) {
+                    Integer selecionado = ((Entidade) selected).getId();
+                    int id = selecionado == null ? 0 : selecionado.intValue();
                     values[i] = id == 0 ? "" : String.valueOf(id);
                 } else values[i] = selected == null ? "" : String.valueOf(selected);
             } else values[i] = ((JTextField) c).getText().trim();
@@ -262,8 +264,8 @@ public class PainelCrud extends JPanel {
                 if ("Relacao".equals(dao.tipos[i])) {
                     if (cb.getItemCount() > 0) cb.setSelectedIndex(0);
                     for (int j = 0; j < cb.getItemCount(); j++)
-                        if (cb.getItemAt(j) instanceof Opcao
-                                && str.equals(String.valueOf(((Opcao) cb.getItemAt(j)).id))) {
+                        if (cb.getItemAt(j) instanceof Entidade
+                                && str.equals(String.valueOf(((Entidade) cb.getItemAt(j)).getId()))) {
                             cb.setSelectedIndex(j);
                             break;
                         }
