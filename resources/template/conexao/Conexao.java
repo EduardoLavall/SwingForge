@@ -23,7 +23,7 @@ public final class Conexao {
                     "recompile o projeto. O JAR em dist/ depende da pasta lib/.", ex);
         }
         String url="jdbc:mysql://"+host+":"+port+"/"+banco+
-                "?characterEncoding=UTF-8&connectionTimeZone=SERVER&connectTimeout=4000";
+                "?characterEncoding=UTF-8&connectionTimeZone=LOCAL&connectTimeout=4000";
         return DriverManager.getConnection(url,user,password);
     }
     public static String bancoPadrao(){return banco;}

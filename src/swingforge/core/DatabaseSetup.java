@@ -79,7 +79,7 @@ public final class DatabaseSetup {
                 props.setProperty("user", credentials.user);
                 props.setProperty("password", new String(credentials.password));
                 String url = "jdbc:mysql://" + credentials.host + ":" + credentials.port
-                        + "/?connectTimeout=4000&connectionTimeZone=SERVER";
+                        + "/?connectTimeout=4000&connectionTimeZone=LOCAL";
                 conn = driver.connect(url, props);
                 if (conn == null) throw new SQLException("Connector/J nao aceitou a URL JDBC.");
                 connection = conn;
