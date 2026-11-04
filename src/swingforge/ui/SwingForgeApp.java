@@ -2,6 +2,7 @@ package swingforge.ui;
 
 import swingforge.core.DatabaseSetup;
 import swingforge.core.Generator;
+import swingforge.core.FormDesign;
 import swingforge.core.MysqlDriver;
 import swingforge.core.ProjectStore;
 import swingforge.core.Spec;
@@ -490,7 +491,10 @@ public final class SwingForgeApp extends JFrame {
                 for(Spec.FormField ui:selected().formFields)
                     if(ui.field.equals(previous))ui.field=f.name;
             }
-            if(col==1){f.type=String.valueOf(v);if(!"Relacao".equals(f.type))f.reference="";}
+            if(col==1){String previous=f.type; f.type=String.valueOf(v);if(!"Relacao".equals(f.type))f.reference="";
+                if(!previous.equals(f.type)) for(Spec.FormField ui:selected().formFields)
+                    if(ui.field.equals(f.name)){ui.widget=FormDesign.defaultWidget(f);ui.options="";}
+            }
             if(col==2)f.reference=v==null?"":String.valueOf(v);
             if(col==3)f.required=Boolean.TRUE.equals(v);
             fireTableRowsUpdated(row,row);

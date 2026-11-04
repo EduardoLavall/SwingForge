@@ -45,8 +45,17 @@ public final class FormEditor extends JDialog {
         titlePanel.add(titulo,BorderLayout.CENTER);editorPanel.add(titlePanel,BorderLayout.NORTH);
         table.setRowHeight(32);table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setFillsViewportHeight(true);
-        table.getColumnModel().getColumn(2).setCellEditor(new DefaultCellEditor(
-            new JComboBox<String>(new String[]{"Texto","Combo","Radio","Check"})));
+        JComboBox<String> widgets=new JComboBox<String>(new String[]{"Texto","Combo","Radio","Check"});
+        DefaultCellEditor widgetEditor=new DefaultCellEditor(widgets);
+        widgetEditor.setClickCountToStart(1);
+        table.getColumnModel().getColumn(2).setCellEditor(widgetEditor);
+        table.getColumnModel().getColumn(2).setCellRenderer((tbl,value,selected,focus,row,col)->{
+            JComboBox<String> display=new JComboBox<String>(new String[]{String.valueOf(value)});
+            display.setBackground(selected?tbl.getSelectionBackground():Color.WHITE);
+            display.setForeground(selected?tbl.getSelectionForeground():tbl.getForeground());
+            return display;
+        });
+        table.putClientProperty("terminateEditOnFocusLost",Boolean.TRUE);
         table.getColumnModel().getColumn(3).setPreferredWidth(180);
         editorPanel.add(new JScrollPane(table),BorderLayout.CENTER);
         JPanel reorder=new JPanel(new FlowLayout(FlowLayout.LEFT,8,0));reorder.setBackground(Light.PANEL);
@@ -88,13 +97,15 @@ public final class FormEditor extends JDialog {
         if(table.isEditing())table.getCellEditor().stopCellEditing();
         for(Spec.FormField u:draft) {
             Spec.Field field=FormDesign.find(entity,u.field);
-            if("Relacao".equals(field.type))u.widget="Combo";
-            else if("Booleano".equals(field.type))u.widget="Check";
-            else if(!"Texto".equals(field.type)||"Check".equals(u.widget))u.widget="Texto";
+            if(!FormDesign.compatible(field,u.widget)) {
+                JOptionPane.showMessageDialog(this,"Componente incompativel com o tipo de "+u.field);return;
+            }
+            try { FormDesign.validateOptions(field,u); }
+            catch(IllegalArgumentException ex) { JOptionPane.showMessageDialog(this,ex.getMessage());return; }
             if(!u.visible&&field.required) {
                 JOptionPane.showMessageDialog(this,"Campo obrigatorio deve ficar visivel: "+u.field);return;
             }
-            if("Texto".equals(field.type)&&("Combo".equals(u.widget)||"Radio".equals(u.widget))
+            if(!"Relacao".equals(field.type)&&!"Booleano".equals(field.type)&&("Combo".equals(u.widget)||"Radio".equals(u.widget))
                     &&u.options.trim().isEmpty()) {
                 JOptionPane.showMessageDialog(this,"Informe as opcoes separadas por | para "+u.field);return;
             }
@@ -114,15 +125,17 @@ public final class FormEditor extends JDialog {
             form.add(new JLabel(u.label+":"),gc);
             gc.gridx=1;gc.weightx=1;gc.fill=GridBagConstraints.HORIZONTAL;
             JComponent c;
+            String options=u.options;
+            if(options.isEmpty() && "Booleano".equals(FormDesign.find(entity,u.field).type))options="true|false";
             if("Radio".equals(u.widget)) {
                 JPanel group=new JPanel(new FlowLayout(FlowLayout.LEFT,4,0));group.setBackground(Color.WHITE);
                 ButtonGroup buttons=new ButtonGroup();
-                for(String part:u.options.split("\\|"))if(!part.trim().isEmpty()){
+                for(String part:options.split("\\|"))if(!part.trim().isEmpty()){
                     JRadioButton b=new JRadioButton(part.trim());buttons.add(b);group.add(b);
                 }
                 c=group;
             }else if("Combo".equals(u.widget))c=new JComboBox<String>(
-                u.options.isEmpty()?new String[]{"Selecione","Exemplo"}:u.options.split("\\|"));
+                options.isEmpty()?new String[]{"Selecione","Exemplo"}:options.split("\\|"));
             else if("Check".equals(u.widget))c=new JCheckBox("Sim");
             else c=new JTextField(15);
             form.add(c,gc);row++;
@@ -149,7 +162,12 @@ public final class FormEditor extends JDialog {
             return col==0?u.field:col==1?u.label:col==2?u.widget:col==3?u.options:u.visible;}
         public void setValueAt(Object value,int row,int col){Spec.FormField u=draft.get(row);
             if(col==1)u.label=String.valueOf(value).trim();
-            if(col==2)u.widget=String.valueOf(value);
+            if(col==2){
+                String choice=String.valueOf(value);
+                if(!FormDesign.compatible(FormDesign.find(entity,u.field),choice)) {
+                    JOptionPane.showMessageDialog(FormEditor.this,"Componente incompativel com o tipo de "+u.field);
+                } else u.widget=choice;
+            }
             if(col==3)u.options=String.valueOf(value).trim();
             if(col==4)u.visible=Boolean.TRUE.equals(value);
             fireTableRowsUpdated(row,row);SwingUtilities.invokeLater(()->refresh());

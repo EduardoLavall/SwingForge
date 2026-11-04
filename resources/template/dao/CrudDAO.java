@@ -89,8 +89,16 @@ public class CrudDAO {
         try{
             if("Inteiro".equals(type)||"Relacao".equals(type))ps.setInt(pos,Integer.parseInt(value));
             else if("Decimal".equals(type))ps.setBigDecimal(pos,new BigDecimal(value.replace(',','.')));
-            else if("Data".equals(type))ps.setDate(pos,Date.valueOf(LocalDate.parse(value)));
-            else if("Booleano".equals(type))ps.setBoolean(pos,Boolean.parseBoolean(value));
+            else if("Data".equals(type)){
+                LocalDate date=value.contains("/") ? LocalDate.parse(value,
+                    java.time.format.DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(java.time.format.ResolverStyle.STRICT)) : LocalDate.parse(value);
+                ps.setDate(pos,Date.valueOf(date));
+            }
+            else if("Booleano".equals(type)){
+                if(!"true".equalsIgnoreCase(value)&&!"false".equalsIgnoreCase(value))
+                    throw new IllegalArgumentException("Booleano deve ser true ou false");
+                ps.setBoolean(pos,Boolean.parseBoolean(value));
+            }
             else ps.setString(pos,value);
         }catch(RuntimeException ex){throw new IllegalArgumentException("Valor invalido em "+campos[pos-1]+": "+value);}
     }

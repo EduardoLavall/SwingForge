@@ -6,6 +6,7 @@ import java.awt.*;
 
 public final class TelaPrincipal extends JFrame {
     private final JTabbedPane tabs=new JTabbedPane();
+    private boolean conectado;
     public TelaPrincipal(){
         super("__APP_NAME__ — Java Swing + MySQL");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);setSize(1020,720);setLocationRelativeTo(null);
@@ -17,6 +18,8 @@ __TABS__
         content.add(tabs,BorderLayout.CENTER);setContentPane(content);Tema.aplicar(content);
         configurar.addActionListener(e->configurar());
         reload.addActionListener(e->atualizar());
+        tabs.addChangeListener(e->{if(conectado && tabs.getSelectedComponent() instanceof PainelCrud)
+            ((PainelCrud)tabs.getSelectedComponent()).carregar();});
         SwingUtilities.invokeLater(()->configurar());
     }
     private void configurar(){
@@ -28,7 +31,7 @@ __TABS__
                 !=JOptionPane.OK_OPTION)return;
         try{Conexao.configurar(host.getText(),porta.getText(),banco.getText(),usuario.getText(),new String(senha.getPassword()));
             try(java.sql.Connection cn=Conexao.abrir()){if(!cn.isValid(4))throw new java.sql.SQLException("Conexao invalida.");}
-            atualizar();
+            conectado=true;atualizar();
         }catch(Exception ex){JOptionPane.showMessageDialog(this,"Nao foi possivel conectar: "+ex.getMessage());}
     }
     private void atualizar(){for(int i=0;i<tabs.getTabCount();i++)((PainelCrud)tabs.getComponentAt(i)).carregar();}

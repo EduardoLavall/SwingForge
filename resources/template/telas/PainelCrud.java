@@ -20,6 +20,7 @@ public class PainelCrud extends JPanel {
     private final JTable tabela;
     private List<Registro> registros=new ArrayList<Registro>();
     private Integer editando=null;
+    private Object[] valoresOriginais;
 
     protected PainelCrud(String titulo,CrudDAO dao,String[] rotulos,
             int[] ordem,String[] labels,String[] widgets,String[] options){
@@ -36,12 +37,13 @@ public class PainelCrud extends JPanel {
             gc.gridx=1;gc.weightx=1;gc.fill=GridBagConstraints.HORIZONTAL;
             JComponent input;
             if("Relacao".equals(dao.tipos[i]))input=new JComboBox<Opcao>();
-            else if("Booleano".equals(dao.tipos[i]))input=new JCheckBox("Sim");
-            else if("Radio".equals(widgets[row]))input=new RadioOptions(options[row]);
+            else if("Check".equals(widgets[row]))input=new JCheckBox("Sim");
+            else if("Radio".equals(widgets[row]))input=new RadioOptions(
+                "Booleano".equals(dao.tipos[i]) && options[row].trim().isEmpty()?"true|false":options[row]);
             else if("Combo".equals(widgets[row])){
                 JComboBox<String> combo=new JComboBox<String>();
                 if(!dao.obrigatorios[i])combo.addItem("");
-                for(String text:options[row].split("\\|"))
+                for(String text:("Booleano".equals(dao.tipos[i]) && options[row].trim().isEmpty()?"true|false":options[row]).split("\\|"))
                     if(!text.trim().isEmpty())combo.addItem(text.trim());
                 input=combo;
             }else input=new JTextField(20);
@@ -89,7 +91,7 @@ public class PainelCrud extends JPanel {
         Object[] values=new Object[inputs.length];
         for(int i=0;i<inputs.length;i++){
             JComponent c=inputs[i];
-            if(c==null){values[i]="";continue;}
+            if(c==null){values[i]=valoresOriginais==null?"":valoresOriginais[i];continue;}
             if(c instanceof RadioOptions)values[i]=((RadioOptions)c).value();
             else if(c instanceof JCheckBox)values[i]=Boolean.toString(((JCheckBox)c).isSelected());
             else if(c instanceof JComboBox){
@@ -116,11 +118,15 @@ public class PainelCrud extends JPanel {
     private void selecionar(){
         int view=tabela.getSelectedRow();if(view<0)return;
         int index=tabela.convertRowIndexToModel(view);if(index<0||index>=registros.size())return;
-        Registro r=registros.get(index);editando=Integer.valueOf(r.id);
+        Registro r=registros.get(index);editando=Integer.valueOf(r.id);valoresOriginais=r.valores.clone();
         for(int i=0;i<inputs.length;i++){
             JComponent c=inputs[i];if(c==null)continue;
             Object value=r.valores[i];String str=value==null?"":String.valueOf(value);
-            if(c instanceof RadioOptions)((RadioOptions)c).select(str);
+            if("Booleano".equals(dao.tipos[i]) && value!=null){
+                if("1".equals(str))str="true";
+                else if("0".equals(str))str="false";
+            }
+            if(c instanceof RadioOptions)((RadioOptions)c).select(str,dao.tipos[i]);
             else if(c instanceof JCheckBox)((JCheckBox)c).setSelected(Boolean.TRUE.equals(value)||"1".equals(str));
             else if(c instanceof JComboBox){
                 JComboBox<?> cb=(JComboBox<?>)c;
@@ -128,11 +134,14 @@ public class PainelCrud extends JPanel {
                     for(int j=0;j<cb.getItemCount();j++)
                         if(cb.getItemAt(j) instanceof Opcao &&
                            str.equals(String.valueOf(((Opcao)cb.getItemAt(j)).id))){cb.setSelectedIndex(j);break;}
-                }else cb.setSelectedItem(str);
+                }else {
+                    cb.setSelectedIndex(-1);
+                    for(int j=0;j<cb.getItemCount();j++)if(equivalente(str,String.valueOf(cb.getItemAt(j)),dao.tipos[i])){cb.setSelectedIndex(j);break;}
+                }
             }else ((JTextField)c).setText(str);
         }
     }
-    private void limpar(){editando=null;tabela.clearSelection();
+    private void limpar(){editando=null;valoresOriginais=null;tabela.clearSelection();
         for(JComponent c:inputs){
             if(c instanceof RadioOptions)((RadioOptions)c).clear();
             else if(c instanceof JTextField)((JTextField)c).setText("");
@@ -143,6 +152,18 @@ public class PainelCrud extends JPanel {
     }
     private void mostrarErro(String acao,Exception ex){
         JOptionPane.showMessageDialog(this,acao+":\n"+ex.getMessage(),"Problema",JOptionPane.ERROR_MESSAGE);
+    }
+    private static boolean equivalente(String stored,String option,String type) {
+        if(stored.equals(option))return true;
+        try {
+            if("Inteiro".equals(type))return Integer.parseInt(stored)==Integer.parseInt(option);
+            if("Decimal".equals(type))return new java.math.BigDecimal(stored.replace(',','.')).compareTo(new java.math.BigDecimal(option.replace(',','.')))==0;
+            if("Data".equals(type)) {
+                java.time.LocalDate date=java.time.LocalDate.parse(stored);
+                return date.equals(option.contains("/")?java.time.LocalDate.parse(option,java.time.format.DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(java.time.format.ResolverStyle.STRICT)):java.time.LocalDate.parse(option));
+            }
+        } catch(RuntimeException ex) { return false; }
+        return false;
     }
     private static final class RadioOptions extends JPanel {
         private final ButtonGroup group=new ButtonGroup();
@@ -158,9 +179,9 @@ public class PainelCrud extends JPanel {
                 AbstractButton button=b.nextElement();if(button.isSelected())return button.getText();
             }return "";
         }
-        void select(String value){group.clearSelection();
+        void select(String value,String type){group.clearSelection();
             for(java.util.Enumeration<AbstractButton> b=group.getElements();b.hasMoreElements();){
-                AbstractButton button=b.nextElement();if(button.getText().equals(value)){button.setSelected(true);break;}
+                AbstractButton button=b.nextElement();if(equivalente(value,button.getText(),type)){button.setSelected(true);break;}
             }
         }
         void clear(){group.clearSelection();}

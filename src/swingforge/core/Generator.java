@@ -16,7 +16,7 @@ import java.util.List;
 /** Gera pasta Ant/NetBeans offline: src, beans, dao, conexao, telas e SQL. */
 public final class Generator {
     private Generator() { }
-    private static String q(String raw) {return "\""+raw.replace("\\","\\\\").replace("\"","\\\"")+"\"";}
+    private static String q(String raw) {return "\""+raw.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r")+"\"";}
     private static String upper(String raw){return Character.toUpperCase(raw.charAt(0))+raw.substring(1);}
     private static String javaType(String type){
         if("Inteiro".equals(type)||"Relacao".equals(type))return "Integer";
