@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 
-rem SwingForge abre sem Apache Ant quando o JAR esta incluido.
+rem Preferir sempre codigo atualizado do GitHub quando existir JDK.
 set "JAVA=java"
 where java >nul 2>&1
 if not errorlevel 1 goto :java_ok
@@ -10,29 +10,26 @@ if not defined JAVA_HOME goto :no_java
 if not exist "%JAVA_HOME%\bin\java.exe" goto :no_java
 set "JAVA=%JAVA_HOME%\bin\java.exe"
 :java_ok
-if exist "dist\SwingForge.jar" goto :run_jar
-
-rem Checkout do GitHub: dist/ nao e versionado, entao compila com JDK.
-if not exist "src\swingforge\SwingForge.java" goto :no_sources
+if not exist "src\swingforge\SwingForge.java" goto :run_jar
 set "JAVAC=javac"
 where javac >nul 2>&1
 if not errorlevel 1 goto :compile
-if not defined JAVA_HOME goto :no_jdk
-if not exist "%JAVA_HOME%\bin\javac.exe" goto :no_jdk
+if not defined JAVA_HOME goto :run_jar
+if not exist "%JAVA_HOME%\bin\javac.exe" goto :run_jar
 set "JAVAC=%JAVA_HOME%\bin\javac.exe"
 :compile
-echo [SwingForge] JAR ausente. Compilando com JDK local (Ant nao necessario)...
+echo [SwingForge] Compilando o codigo atual com JDK local (sem Ant)...
 if not exist "build\classes" mkdir "build\classes"
 "%JAVAC%" -encoding UTF-8 -source 8 -target 8 -sourcepath "src" -d "build\classes" "src\swingforge\SwingForge.java"
 if errorlevel 1 goto :build_failed
-rem Recursos/templates ficam disponiveis no classpath, sem precisar copiar arquivos.
-echo [SwingForge] Iniciando...
+echo [SwingForge] Abrindo aplicativo offline...
 "%JAVA%" -cp "build\classes;resources" swingforge.SwingForge
 set "CODE=%errorlevel%"
 goto :finish
 
 :run_jar
-echo [SwingForge] Iniciando aplicativo offline...
+if not exist "dist\SwingForge.jar" goto :no_jdk
+echo [SwingForge] Abrindo JAR offline...
 "%JAVA%" -jar "dist\SwingForge.jar"
 set "CODE=%errorlevel%"
 goto :finish
@@ -42,17 +39,12 @@ echo [ERRO] Java nao encontrado. Instale um JRE/JDK offline ou configure JAVA_HO
 set "CODE=1"
 goto :finish
 :no_jdk
-echo [ERRO] Este checkout do GitHub nao contem o JAR compilado.
-echo Instale um JDK 8+ offline (com javac), ou use o ZIP distribuido com dist\SwingForge.jar.
-set "CODE=1"
-goto :finish
-:no_sources
-echo [ERRO] Nao encontrei dist\SwingForge.jar nem src\swingforge\SwingForge.java.
-echo Extraia o ZIP completo do SwingForge antes de executar.
+echo [ERRO] Sem JDK para compilar as fontes e sem dist\SwingForge.jar.
+echo Use um JDK local ou a versao distribuida com o JAR compilado.
 set "CODE=1"
 goto :finish
 :build_failed
-echo [ERRO] Falha na compilacao. Verifique a versao do JDK instalada.
+echo [ERRO] Falha na compilacao. Verifique o JDK instalado.
 set "CODE=1"
 :finish
 if not "%CODE%"=="0" pause
