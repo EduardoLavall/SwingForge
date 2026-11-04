@@ -1,5 +1,6 @@
 package swingforge.ui;
 
+import swingforge.core.DatabaseSetup;
 import swingforge.core.Generator;
 import swingforge.core.MysqlDriver;
 import swingforge.core.ProjectStore;
@@ -20,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /** Interface 100% offline. O editor visual de formularios (.form) entra na Etapa 2/3. */
@@ -39,6 +41,7 @@ public final class SwingForgeApp extends JFrame {
     private final JButton gerar=Dark.button("Gerar pasta do projeto",true);
     private final JButton compilar=Dark.button("Compilar e testar",false);
     private final JButton executar=Dark.button("Executar sistema",false);
+    private final JButton prepararBanco=Dark.button("Preparar MySQL",false);
 
     public SwingForgeApp(){
         super("SwingForge — Offline Java CRUD Studio");
@@ -52,6 +55,7 @@ public final class SwingForgeApp extends JFrame {
         body.add(content,BorderLayout.CENTER);body.add(footer(),BorderLayout.SOUTH);
         lista.addListSelectionListener(e->{if(!e.getValueIsAdjusting())selectedChanged();});
         gerar.addActionListener(e->generate());compilar.addActionListener(e->compile());executar.addActionListener(e->run());
+        prepararBanco.addActionListener(e->prepareDatabase());
         refreshProject();
     }
     private JPanel header(){
@@ -121,7 +125,8 @@ public final class SwingForgeApp extends JFrame {
         JPanel bottom=new JPanel(new BorderLayout(0,9));bottom.setBackground(Dark.BG);
         JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEFT,8,0));actions.setBackground(Dark.BG);
         JButton novo=Dark.button("Novo",false),abrir=Dark.button("Abrir projeto",false),salvar=Dark.button("Salvar modelo",false);
-        actions.add(novo);actions.add(abrir);actions.add(salvar);actions.add(gerar);actions.add(compilar);actions.add(executar);
+        actions.add(novo);actions.add(abrir);actions.add(salvar);actions.add(gerar);actions.add(compilar);
+        actions.add(prepararBanco);actions.add(executar);
         novo.addActionListener(e->newProject());abrir.addActionListener(e->openProject());salvar.addActionListener(e->saveModel());
         bottom.add(actions,BorderLayout.NORTH);
         log.setEditable(false);log.setLineWrap(true);log.setWrapStyleWord(true);log.setForeground(Dark.MUTED);log.setBackground(Dark.PANEL);
@@ -204,6 +209,115 @@ public final class SwingForgeApp extends JFrame {
         else message("Conector do professor disponivel em lib/"+MysqlDriver.NAME);
         return true;
     }catch(Exception ex){error("Erro ao gerar",ex);return false;}}
+    /** Verifica o MySQL local; nao guarda a senha e nao modifica dados sem confirmacao. */
+    private void prepareDatabase(){
+        if(busy)return;
+        try{
+            flushEditors();Validator.validate(spec);
+            if(root==null || !Files.isDirectory(root.resolve("src"))){
+                JOptionPane.showMessageDialog(this,
+                    "Gere a pasta do projeto antes de preparar o MySQL.",
+                    "Projeto nao gerado",JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            Path model=root.resolve("swingforge.json");
+            if(!Files.isRegularFile(model) || !ProjectStore.serialize(spec).equals(
+                    new String(Files.readAllBytes(model),StandardCharsets.UTF_8))){
+                int result=JOptionPane.showConfirmDialog(this,
+                    "O modelo foi alterado desde a ultima geracao. Gerar o codigo e SQL antes de continuar?",
+                    "Atualizar modelo",JOptionPane.YES_NO_OPTION);
+                if(result!=JOptionPane.YES_OPTION||!generate())return;
+            }
+        }catch(Exception ex){error("Erro ao validar o modelo",ex);return;}
+        Path driver=root.resolve("lib").resolve(MysqlDriver.NAME);
+        if(!Files.isRegularFile(driver)){
+            try{
+                if(!MysqlDriver.copyTo(root,root.resolve(".swingforge/backups/driver-setup"))){
+                    JOptionPane.showMessageDialog(this,
+                        "Connector/J 8.1.0 ausente. Verifique tools/jdbc no SwingForge.",
+                        "Dependencia ausente",JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }catch(Exception ex){error("Nao foi possivel preparar o Connector/J",ex);return;}
+        }
+        JTextField host=Dark.field("localhost"),port=Dark.field("3306"),user=Dark.field("root");
+        JPasswordField password=new JPasswordField(18);
+        Object[] fields={"Conexao ao servidor MySQL local", "Banco: "+spec.database,
+            "Host",host,"Porta",port,"Usuario",user,"Senha (nao sera salva)",password};
+        int response=JOptionPane.showConfirmDialog(this,fields,"Preparar MySQL",
+                JOptionPane.OK_CANCEL_OPTION,JOptionPane.QUESTION_MESSAGE);
+        if(response!=JOptionPane.OK_OPTION){password.setText("");return;}
+        char[] secret=password.getPassword();password.setText("");
+        final DatabaseSetup.Credentials credentials;
+        try{credentials=new DatabaseSetup.Credentials(host.getText().trim(),port.getText().trim(),
+                user.getText().trim(),secret);}
+        catch(Exception ex){Arrays.fill(secret,'\0');error("Dados de conexao invalidos",ex);return;}
+        Arrays.fill(secret,'\0');
+        final Spec snapshot=ProjectStore.deserialize(ProjectStore.serialize(spec));
+        final Path jdbc=driver;
+        busy=true;setActionsEnabled(false);
+        message("Conectando ao servidor e verificando banco "+snapshot.database+"...");
+        new SwingWorker<DatabaseSetup.Inspection,Void>(){
+            @Override protected DatabaseSetup.Inspection doInBackground() throws Exception{
+                return DatabaseSetup.inspect(snapshot,credentials,jdbc);
+            }
+            @Override protected void done(){
+                busy=false;setActionsEnabled(true);
+                try{
+                    DatabaseSetup.Inspection result=get();
+                    message(result.describe(snapshot.database).trim());
+                    if(!result.safeToPrepare()){
+                        JOptionPane.showMessageDialog(SwingForgeApp.this,
+                            result.describe(snapshot.database)+"\nNenhuma alteracao foi feita.\nRevise as tabelas existentes manualmente.",
+                            "Estrutura incompativel",JOptionPane.WARNING_MESSAGE);
+                        credentials.clear();return;
+                    }
+                    if(result.ready()){
+                        JOptionPane.showMessageDialog(SwingForgeApp.this,
+                            "Banco e tabelas ja existem. Nada foi alterado.",
+                            "MySQL pronto",JOptionPane.INFORMATION_MESSAGE);
+                        credentials.clear();return;
+                    }
+                    String summary=result.describe(snapshot.database)+"\nDeseja criar somente as estruturas ausentes?\n"+
+                        "O SwingForge executara o SQL gerado (CREATE DATABASE / CREATE TABLE e FKs).\n"+
+                        "Nao executa DROP nem apaga registros. Tabelas existentes nao serao migradas.\n"+
+                        "A operacao nao tem rollback automatico de DDL.";
+                    int confirm=JOptionPane.showConfirmDialog(SwingForgeApp.this,summary,
+                        "Confirmar criacao do banco",JOptionPane.YES_NO_OPTION,JOptionPane.QUESTION_MESSAGE);
+                    if(confirm!=JOptionPane.YES_OPTION){credentials.clear();message("Preparacao do MySQL cancelada.");return;}
+                    applyDatabase(snapshot,credentials,jdbc);
+                }catch(Exception ex){credentials.clear();
+                    Throwable cause=ex.getCause()==null?ex:ex.getCause();
+                    error("Falha ao verificar MySQL",new Exception(cause.getMessage()));
+                }
+            }
+        }.execute();
+    }
+    private void applyDatabase(final Spec snapshot,final DatabaseSetup.Credentials credentials,final Path jdbc){
+        busy=true;setActionsEnabled(false);
+        message("Criando somente banco, tabelas e relacionamentos ausentes...");
+        new SwingWorker<DatabaseSetup.Inspection,Void>(){
+            @Override protected DatabaseSetup.Inspection doInBackground() throws Exception{
+                return DatabaseSetup.prepare(snapshot,credentials,jdbc);
+            }
+            @Override protected void done(){
+                credentials.clear();busy=false;setActionsEnabled(true);
+                try{
+                    DatabaseSetup.Inspection result=get();
+                    message(result.describe(snapshot.database).trim());
+                    JOptionPane.showMessageDialog(SwingForgeApp.this,
+                        "Banco "+snapshot.database+" preparado com sucesso.\n"+
+                        "Agora execute o sistema e informe as credenciais quando solicitado.",
+                        "MySQL pronto",JOptionPane.INFORMATION_MESSAGE);
+                }catch(Exception ex){Throwable cause=ex.getCause()==null?ex:ex.getCause();
+                    error("Falha ao criar banco/tabelas",new Exception(cause.getMessage()));}
+            }
+        }.execute();
+    }
+    private void setActionsEnabled(boolean enabled){
+        gerar.setEnabled(enabled);compilar.setEnabled(enabled);
+        prepararBanco.setEnabled(enabled);executar.setEnabled(enabled);
+    }
     private void compile(){
         if(root==null){if(!generate())return;}
         else {
@@ -249,7 +363,7 @@ public final class SwingForgeApp extends JFrame {
         if(Files.isRegularFile(local))antPath=local.toAbsolutePath().toString();
         final List<String> command=new ArrayList<String>();command.add(antPath);
         if(!run){command.add("clean");command.add("jar");}else{command.add("run");}
-        busy=true;gerar.setEnabled(false);compilar.setEnabled(false);executar.setEnabled(false);
+        busy=true;setActionsEnabled(false);
         message(run?"Executando sistema...":"Compilando projeto...");
         new SwingWorker<Integer,String>(){
             private int execute(List<String> args) throws Exception {
@@ -317,7 +431,7 @@ public final class SwingForgeApp extends JFrame {
                 for(String line:chunks){log.append(line+"\n");log.setCaretPosition(log.getDocument().getLength());}
             }
             @Override protected void done(){
-                busy=false;gerar.setEnabled(true);compilar.setEnabled(true);executar.setEnabled(true);
+                busy=false;setActionsEnabled(true);
                 try{
                     int exit=get();
                     if(exit==0){
@@ -326,8 +440,12 @@ public final class SwingForgeApp extends JFrame {
                             Path jar=folder.resolve("dist").resolve(spec.name+".jar");
                             Path sql=folder.resolve("sql/01_criar_banco.sql");
                             if(Files.isRegularFile(jar)&&Files.isRegularFile(sql))
-                                message("Compilacao + verificacao dos artefatos: OK. CRUD com MySQL real: nao testado.");
+                                message("Compilacao + artefatos: OK. Banco MySQL ainda precisa de verificacao.");
                             else message("Compilacao terminou, mas faltam artefatos previstos.");
+                        int wantsDb=JOptionPane.showConfirmDialog(SwingForgeApp.this,
+                            "Compilacao concluida. Deseja verificar e preparar o MySQL agora?",
+                            "Verificar banco de dados",JOptionPane.YES_NO_OPTION);
+                        if(wantsDb==JOptionPane.YES_OPTION)SwingUtilities.invokeLater(()->prepareDatabase());
                         }
                     } else message("Compilacao/execucao retornou codigo "+exit+". Veja os detalhes acima.");
                 } catch(Exception ex){

@@ -88,9 +88,11 @@ public final class Generator {
         for(Spec.Entity e:spec.entities)for(Spec.Field f:e.fields)if("Relacao".equals(f.type)){
             String foreign=Spec.table(e.name)+"_"+f.name+"_fk";
             // Idempotent: check information_schema before adding a foreign key.
-            b.append("SET @sf_fk_exists = (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS ")
-                .append("WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = '")
-                .append(Spec.table(e.name)).append("' AND CONSTRAINT_NAME = '").append(foreign).append("');\n")
+            b.append("SET @sf_fk_exists = (SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE ")
+                .append("WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '")
+                .append(Spec.table(e.name)).append("' AND COLUMN_NAME = '").append(f.name)
+                .append("' AND REFERENCED_TABLE_NAME = '").append(Spec.table(f.reference))
+                .append("' AND REFERENCED_COLUMN_NAME = 'id');\n")
                 .append("SET @sf_statement = IF(@sf_fk_exists = 0, 'ALTER TABLE `")
                 .append(Spec.table(e.name)).append("` ADD CONSTRAINT `").append(foreign)
                 .append("` FOREIGN KEY (`").append(f.name).append("`) REFERENCES `")
@@ -164,7 +166,7 @@ public final class Generator {
             "Se lib/mysql-connector-j-8.1.0.jar estiver ausente, importe o ZIP no SwingForge.\n");
         String mainSource="src/"+spec.pkg.replace('.', '/')+"/Main.java";
         files.put("run.bat", "@echo off\r\nsetlocal EnableExtensions\r\ncd /d \"%~dp0\"\r\n"+
-            "if not exist \"lib\\\\mysql-connector-j-8.1.0.jar\" (echo [ERRO] Driver MySQL ausente em lib\\\\. & pause & exit /b 1)\r\n"+
+            "if not exist \"lib\\mysql-connector-j-8.1.0.jar\" (echo [ERRO] Driver MySQL ausente em lib\\. & pause & exit /b 1)\r\n"+
             "if exist \"tools\\ant\\bin\\ant.bat\" (call \"tools\\ant\\bin\\ant.bat\" run & goto :end)\r\n"+
             "where ant >nul 2>&1\r\nif not errorlevel 1 (call ant run & goto :end)\r\n"+
             "where javac >nul 2>&1\r\nif errorlevel 1 (echo [ERRO] JDK/javac nao encontrado. Instale um JDK offline. & pause & exit /b 1)\r\n"+
