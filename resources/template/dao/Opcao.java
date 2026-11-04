@@ -1,4 +1,4 @@
-package __PACKAGE__.dao;
+package __PACKAGE__;
 
 public final class Opcao {
     public final int id;

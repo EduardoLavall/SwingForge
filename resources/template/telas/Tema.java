@@ -1,4 +1,4 @@
-package __PACKAGE__.telas;
+package __PACKAGE__;
 
 import java.awt.*;
 

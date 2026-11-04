@@ -26,10 +26,16 @@ public final class Validator {
         identifier(s.database, "Banco MySQL");
         if (s.entities.isEmpty()) throw new IllegalArgumentException("Adicione ao menos uma entidade.");
         Set<String> classes = new HashSet<String>();
+        Set<String> generatedClasses = new HashSet<String>(Arrays.asList(
+            "main", "conexao", "registro", "opcao", "cruddao", "tema", "painelcrud", "telaprincipal"));
         Set<String> tables = new HashSet<String>();
         for (Spec.Entity e : s.entities) {
             identifier(e.name, "Entidade");
             if (!Character.isUpperCase(e.name.charAt(0))) throw new IllegalArgumentException("Classe deve iniciar com maiuscula: " + e.name);
+            for (String generated : Arrays.asList(e.name, e.name + "DAO", "Tela" + e.name)) {
+                if (!generatedClasses.add(generated.toLowerCase(Locale.ROOT)))
+                    throw new IllegalArgumentException("Nome de entidade gera classe duplicada: " + e.name);
+            }
             if (!classes.add(e.name.toLowerCase(Locale.ROOT)) || !tables.add(Spec.table(e.name)))
                 throw new IllegalArgumentException("Entidade duplicada: " + e.name);
             if (e.fields.isEmpty()) throw new IllegalArgumentException("A entidade " + e.name + " precisa de campos alem do ID.");

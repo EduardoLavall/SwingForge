@@ -1,6 +1,5 @@
-package __PACKAGE__.telas;
+package __PACKAGE__;
 
-import __PACKAGE__.conexao.Conexao;
 
 import java.awt.*;
 

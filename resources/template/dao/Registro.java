@@ -1,4 +1,4 @@
-package __PACKAGE__.dao;
+package __PACKAGE__;
 
 public final class Registro {
     public final int id;

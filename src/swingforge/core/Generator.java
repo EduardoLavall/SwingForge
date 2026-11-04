@@ -13,7 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
 
-/** Gera pasta Ant/NetBeans offline: src, beans, dao, conexao, telas e SQL. */
+/** Gera projeto Ant/NetBeans offline com classes no mesmo pacote e SQL. */
 public final class Generator {
     private Generator() { }
     private static String q(String raw) {return "\""+raw.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r")+"\"";}
@@ -48,14 +48,25 @@ public final class Generator {
     private static Spec.Entity find(Spec s,String name){for(Spec.Entity e:s.entities)if(e.name.equals(name))return e;throw new IllegalArgumentException(name);}
     private static String bools(Spec.Entity e){StringBuilder b=new StringBuilder("new boolean[] {");for(Spec.Field f:e.fields){if(b.charAt(b.length()-1)!='{')b.append(", ");b.append(f.required);}return b.append('}').toString();}
     public static String bean(Spec spec, Spec.Entity e) {
-        StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(".beans;\n\n");
+        StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(";\n\n");
         b.append("/** Modelo de dados da entidade ").append(e.name).append(". */\n")
             .append("public class ").append(e.name).append(" {\n")
             .append("    private Integer id;\n");
         for (Spec.Field f : e.fields) {
             b.append("    private ").append(javaType(f.type)).append(' ').append(f.name).append(";\n");
         }
-        b.append("\n    public ").append(e.name).append("() {\n    }\n\n")
+        b.append("\n    public ").append(e.name).append("() {\n    }\n\n");
+        b.append("    public ").append(e.name).append("(");
+        for (int i = 0; i < e.fields.size(); i++) {
+            Spec.Field f = e.fields.get(i);
+            if (i > 0) b.append(", ");
+            b.append(javaType(f.type)).append(' ').append(f.name);
+        }
+        b.append(") {\n");
+        for (Spec.Field f : e.fields) {
+            b.append("        this.").append(f.name).append(" = ").append(f.name).append(";\n");
+        }
+        b.append("    }\n\n")
             .append("    public Integer getId() {\n        return id;\n    }\n\n")
             .append("    public void setId(Integer id) {\n        this.id = id;\n    }\n");
         for (Spec.Field f : e.fields) {
@@ -67,10 +78,15 @@ public final class Generator {
                 .append(f.name).append(") {\n        this.").append(f.name).append(" = ")
                 .append(f.name).append(";\n    }\n");
         }
-        return b.append("}\n").toString();
+        b.append("\n    public Object[] obterDados() {\n        return new Object[] {");
+        for (int i = 0; i < e.fields.size(); i++) {
+            if (i > 0) b.append(", ");
+            b.append(e.fields.get(i).name);
+        }
+        return b.append("};\n    }\n}\n").toString();
     }
     public static String dao(Spec spec, Spec.Entity e) {
-        return "package " + spec.pkg + ".dao;\n\n"
+        return "package " + spec.pkg + ";\n\n"
             + "/** CRUD SQL da entidade " + e.name + ". */\n"
             + "public final class " + e.name + "DAO extends CrudDAO {\n"
             + "    public " + e.name + "DAO() {\n"
@@ -113,20 +129,59 @@ public final class Generator {
         return arrayOf(values);
     }
     public static String tela(Spec spec, Spec.Entity e) {
-        return "package " + spec.pkg + ".telas;\n\n"
-            + "import " + spec.pkg + ".dao." + e.name + "DAO;\n\n"
-            + "/** Formulario Swing gerado pelo GUI Builder do SwingForge. */\n"
-            + "public final class Tela" + e.name + " extends PainelCrud {\n"
-            + "    public Tela" + e.name + "() {\n"
-            + "        super(\n"
-            + "            " + q(e.formTitle) + ",\n"
-            + "            new " + e.name + "DAO(),\n"
-            + "            " + tableLabels(e) + ",\n"
-            + "            " + formIndices(e) + ",\n"
-            + "            " + formArray(e, 0) + ",\n"
-            + "            " + formArray(e, 1) + ",\n"
-            + "            " + formArray(e, 2) + ");\n"
-            + "    }\n}\n";
+        FormDesign.normalize(e);
+        StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(";\n\n")
+            .append("import javax.swing.*;\n\n")
+            .append("/** Cadastro de ").append(e.name).append(" com formulario e tabela. */\n")
+            .append("public final class Tela").append(e.name).append(" extends PainelCrud {\n")
+            .append("    public Tela").append(e.name).append("() {\n")
+            .append("        super(\n            ").append(q(e.formTitle)).append(",\n")
+            .append("            new ").append(e.name).append("DAO(),\n")
+            .append("            ").append(tableLabels(e)).append(",\n")
+            .append("            ").append(formIndices(e)).append(",\n")
+            .append("            ").append(formArray(e, 0)).append(",\n")
+            .append("            criarCampos());\n    }\n\n")
+            .append("    /** Componentes do formulario, na ordem dos campos da entidade. */\n")
+            .append("    private static JComponent[] criarCampos() {\n")
+            .append("        JComponent[] campos = new JComponent[").append(e.fields.size()).append("];\n");
+        for (Spec.FormField u : e.formFields) {
+            if (!u.visible) continue;
+            Spec.Field f = FormDesign.find(e, u.field);
+            int index = e.fields.indexOf(f);
+            String suffix = upper(f.name);
+            String var;
+            if ("Relacao".equals(f.type)) {
+                var = "cmb" + suffix;
+                b.append("        JComboBox<Opcao> ").append(var).append(" = new JComboBox<Opcao>();\n");
+            } else if ("Check".equals(u.widget)) {
+                var = "chk" + suffix;
+                b.append("        JCheckBox ").append(var).append(" = new JCheckBox(\"Sim\");\n");
+            } else if ("Radio".equals(u.widget)) {
+                var = "grp" + suffix;
+                b.append("        RadioOptions ").append(var).append(" = new RadioOptions();\n");
+                String options = "Booleano".equals(f.type) && u.options.trim().isEmpty() ? "true|false" : u.options;
+                int n = 0;
+                for (String option : options.split("\\|")) {
+                    String radio = "rdo" + suffix + "_op" + (++n);
+                    b.append("        JRadioButton ").append(radio).append(" = new JRadioButton(")
+                        .append(q(option.trim())).append(");\n");
+                    b.append("        ").append(var).append(".adicionar(").append(radio).append(");\n");
+                }
+            } else if ("Combo".equals(u.widget)) {
+                var = "cmb" + suffix;
+                b.append("        JComboBox<String> ").append(var).append(" = new JComboBox<String>();\n");
+                if (!f.required) b.append("        ").append(var).append(".addItem(\"\");\n");
+                String options = "Booleano".equals(f.type) && u.options.trim().isEmpty() ? "true|false" : u.options;
+                for (String option : options.split("\\|"))
+                    b.append("        ").append(var).append(".addItem(").append(q(option.trim())).append(");\n");
+            } else {
+                var = "txt" + suffix;
+                b.append("        JTextField ").append(var).append(" = new JTextField(20);\n");
+            }
+            b.append("        campos[").append(index).append("] = ").append(var).append(";\n");
+            b.append("\n");
+        }
+        return b.append("        return campos;\n    }\n}\n").toString();
     }
     public static String sql(Spec spec){
         StringBuilder b=new StringBuilder("-- Gerado offline pelo SwingForge. Execute no MySQL local.\nCREATE DATABASE IF NOT EXISTS `")
@@ -195,15 +250,15 @@ public final class Generator {
         String src="src/"+spec.pkg.replace('.','/')+"/";
         addTemplate(files,spec,"Main.java",src+"Main.java");
         for(String name:new String[] {"conexao/Conexao.java","dao/Registro.java","dao/Opcao.java","dao/CrudDAO.java",
-            "telas/Tema.java","telas/PainelCrud.java"})addTemplate(files,spec,name,src+name);
+            "telas/Tema.java","telas/PainelCrud.java"})addTemplate(files,spec,name,src+name.substring(name.lastIndexOf('/')+1));
         StringBuilder tabs=new StringBuilder();
         for(Spec.Entity e:spec.entities){
-            files.put(src+"beans/"+e.name+".java",bean(spec,e));
-            files.put(src+"dao/"+e.name+"DAO.java",dao(spec,e));
-            files.put(src+"telas/Tela"+e.name+".java",tela(spec,e));
+            files.put(src+e.name+".java",bean(spec,e));
+            files.put(src+e.name+"DAO.java",dao(spec,e));
+            files.put(src+"Tela"+e.name+".java",tela(spec,e));
             tabs.append("        adicionarSecao(").append(q(e.name)).append(",new Tela").append(e.name).append("());\n");
         }
-        files.put(src+"telas/TelaPrincipal.java",interpolar(loadTemplate("telas/TelaPrincipal.java"),spec)
+        files.put(src+"TelaPrincipal.java",interpolar(loadTemplate("telas/TelaPrincipal.java"),spec)
             .replace("__TABS__",tabs.toString()));
         files.put("sql/01_criar_banco.sql",sql(spec));
         files.put("criar_banco.bat", "@echo off\r\nsetlocal EnableExtensions EnableDelayedExpansion\r\n"+

@@ -1,6 +1,5 @@
 package __PACKAGE__;
 
-import __PACKAGE__.telas.TelaPrincipal;
 
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;

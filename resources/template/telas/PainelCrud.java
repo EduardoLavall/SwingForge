@@ -1,8 +1,5 @@
-package __PACKAGE__.telas;
+package __PACKAGE__;
 
-import __PACKAGE__.dao.CrudDAO;
-import __PACKAGE__.dao.Opcao;
-import __PACKAGE__.dao.Registro;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -32,11 +29,10 @@ public class PainelCrud extends JPanel {
             String[] rotulos,
             int[] ordem,
             String[] labels,
-            String[] widgets,
-            String[] options) {
+            JComponent[] controles) {
         super(new BorderLayout(10, 10));
         this.dao = dao;
-        inputs = new JComponent[dao.campos.length];
+        inputs = controles;
         setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
         JPanel top = new JPanel(new BorderLayout(8, 8));
         JPanel form = new JPanel(new GridBagLayout());
@@ -54,27 +50,7 @@ public class PainelCrud extends JPanel {
             gc.gridx = 1;
             gc.weightx = 1;
             gc.fill = GridBagConstraints.HORIZONTAL;
-            JComponent input;
-            if ("Relacao".equals(dao.tipos[i])) input = new JComboBox<Opcao>();
-            else if ("Check".equals(widgets[row])) input = new JCheckBox("Sim");
-            else if ("Radio".equals(widgets[row]))
-                input =
-                        new RadioOptions(
-                                "Booleano".equals(dao.tipos[i]) && options[row].trim().isEmpty()
-                                        ? "true|false"
-                                        : options[row]);
-            else if ("Combo".equals(widgets[row])) {
-                JComboBox<String> combo = new JComboBox<String>();
-                if (!dao.obrigatorios[i]) combo.addItem("");
-                for (String text :
-                        ("Booleano".equals(dao.tipos[i]) && options[row].trim().isEmpty()
-                                        ? "true|false"
-                                        : options[row])
-                                .split("\\|"))
-                    if (!text.trim().isEmpty()) combo.addItem(text.trim());
-                input = combo;
-            } else input = new JTextField(20);
-            inputs[i] = input;
+            JComponent input = inputs[i];
             form.add(input, gc);
         }
         top.add(form, BorderLayout.CENTER);
@@ -343,18 +319,16 @@ public class PainelCrud extends JPanel {
         return false;
     }
 
-    private static final class RadioOptions extends JPanel {
+    protected static final class RadioOptions extends JPanel {
         private final ButtonGroup group = new ButtonGroup();
 
-        RadioOptions(String options) {
+        RadioOptions() {
             super(new FlowLayout(FlowLayout.LEFT, 7, 0));
-            for (String raw : options.split("\\|")) {
-                String value = raw.trim();
-                if (value.isEmpty()) continue;
-                JRadioButton button = new JRadioButton(value);
-                group.add(button);
-                add(button);
-            }
+        }
+
+        void adicionar(JRadioButton button) {
+            group.add(button);
+            add(button);
         }
 
         String value() {
