@@ -5,7 +5,7 @@ import javax.swing.*;
 import java.awt.*;
 
 public final class TelaPrincipal extends JFrame {
-    private final JPanel secoes=new JPanel();
+    private final JTabbedPane secoes=new JTabbedPane();
     private final java.util.List<PainelCrud> paineis=new java.util.ArrayList<PainelCrud>();
     private boolean conectado;
     public TelaPrincipal(){
@@ -15,11 +15,8 @@ public final class TelaPrincipal extends JFrame {
         JPanel header=new JPanel(new FlowLayout(FlowLayout.RIGHT,10,8));
         JButton configurar=new JButton("Configurar MySQL"), reload=new JButton("Atualizar listas");
         header.add(configurar);header.add(reload);content.add(header,BorderLayout.NORTH);
-        secoes.setLayout(new BoxLayout(secoes,BoxLayout.Y_AXIS));
 __TABS__
-        JScrollPane rolagem=new JScrollPane(secoes);
-        rolagem.getVerticalScrollBar().setUnitIncrement(24);
-        content.add(rolagem,BorderLayout.CENTER);setContentPane(content);Tema.aplicar(content);
+        content.add(secoes,BorderLayout.CENTER);setContentPane(content);Tema.aplicar(content);
         configurar.addActionListener(e->configurar());
         reload.addActionListener(e->atualizar());
         SwingUtilities.invokeLater(()->configurar());
@@ -37,16 +34,12 @@ __TABS__
         }catch(Exception ex){JOptionPane.showMessageDialog(this,"Nao foi possivel conectar: "+ex.getMessage());}
     }
     private void adicionarSecao(String nome,PainelCrud painel){
-        JPanel secao=new JPanel(new BorderLayout());
-        secao.setBorder(BorderFactory.createTitledBorder(nome));secao.add(painel,BorderLayout.CENTER);
-        Dimension preferred=painel.getPreferredSize();
-        secao.setPreferredSize(new Dimension(900,Math.max(420,preferred.height+30)));
-        secao.setMaximumSize(new Dimension(Integer.MAX_VALUE,secao.getPreferredSize().height));
-        secao.setAlignmentX(Component.LEFT_ALIGNMENT);
-        paineis.add(painel);secoes.add(secao);
+        paineis.add(painel);
+        JScrollPane scroll=new JScrollPane(painel);scroll.getVerticalScrollBar().setUnitIncrement(24);
+        secoes.addTab(nome,scroll);
         painel.aoAlterar(()->atualizarOutras(painel));
     }
-    private void atualizar(){for(PainelCrud painel:paineis)painel.carregar();}
+    private void atualizar(){for(PainelCrud painel:paineis)painel.atualizarSemLimpar();}
     private void atualizarOutras(PainelCrud origem){
         if(conectado)for(PainelCrud painel:paineis)if(painel!=origem)painel.atualizarSemLimpar();
     }

@@ -14,7 +14,7 @@ import java.util.List;
 /** Editor de todas as secoes da tela gerada, com alteracoes aplicadas em conjunto. */
 public final class FormEditor extends JDialog {
     private final List<Section> sections=new ArrayList<Section>();
-    private final JPanel preview=new JPanel();
+    private final JTabbedPane preview=new JTabbedPane();
     private boolean accepted;
 
     public static boolean edit(Frame owner,Spec spec){
@@ -28,17 +28,15 @@ public final class FormEditor extends JDialog {
         body.setBorder(new EmptyBorder(16,16,16,16));setContentPane(body);
         JPanel headline=new JPanel(new GridLayout(2,1));headline.setBackground(Light.BG);
         headline.add(Light.label("Personalizar tela completa",20,false));
-        headline.add(Light.label("Edite cada secao abaixo. A previa mostra todas na mesma tela.",12,true));
+        headline.add(Light.label("Edite as entidades abaixo e confira cada aba na previa.",12,true));
         body.add(headline,BorderLayout.NORTH);
         JPanel editors=new JPanel();editors.setLayout(new BoxLayout(editors,BoxLayout.Y_AXIS));editors.setBackground(Light.BG);
         for(Spec.Entity entity:spec.entities){Section section=new Section(entity);sections.add(section);editors.add(section.panel);}
         JScrollPane editScroll=new JScrollPane(editors);editScroll.getVerticalScrollBar().setUnitIncrement(24);
         JPanel sample=new JPanel(new BorderLayout(6,6));sample.setBackground(Light.PANEL);
         sample.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Light.BORDER),new EmptyBorder(10,10,10,10)));
-        sample.add(Light.label("Previa da tela completa",16,false),BorderLayout.NORTH);
-        preview.setLayout(new BoxLayout(preview,BoxLayout.Y_AXIS));preview.setBackground(Color.WHITE);
-        JScrollPane previewScroll=new JScrollPane(preview);previewScroll.getVerticalScrollBar().setUnitIncrement(24);
-        sample.add(previewScroll,BorderLayout.CENTER);
+        sample.add(Light.label("Previa das abas",16,false),BorderLayout.NORTH);
+        preview.setBackground(Color.WHITE);sample.add(preview,BorderLayout.CENTER);
         JSplitPane split=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,editScroll,sample);
         split.setBorder(null);split.setResizeWeight(.60);body.add(split,BorderLayout.CENTER);
         JPanel bottom=new JPanel(new FlowLayout(FlowLayout.RIGHT));bottom.setBackground(Light.BG);
@@ -108,10 +106,10 @@ public final class FormEditor extends JDialog {
         accepted=true;dispose();
     }
     private void refresh(){
+        int selected=preview.getSelectedIndex();
         preview.removeAll();
         for(Section s:sections){
             JPanel section=new JPanel(new BorderLayout(4,4));section.setBackground(Color.WHITE);
-            section.setBorder(BorderFactory.createTitledBorder(s.draft.name));
             JPanel form=new JPanel(new GridBagLayout());form.setBackground(Color.WHITE);
             form.setBorder(BorderFactory.createTitledBorder(s.title.getText().trim().isEmpty()?"Dados":s.title.getText()));
             GridBagConstraints gc=new GridBagConstraints();gc.insets=new Insets(4,4,4,4);
@@ -143,9 +141,10 @@ public final class FormEditor extends JDialog {
             }
             JTable fake=new JTable(new Object[0][headers.length],headers);fake.setPreferredScrollableViewportSize(new Dimension(350,90));
             section.add(new JScrollPane(fake),BorderLayout.CENTER);
-            section.setAlignmentX(Component.LEFT_ALIGNMENT);section.setMaximumSize(new Dimension(Integer.MAX_VALUE,section.getPreferredSize().height));
-            preview.add(section);
+            JScrollPane scroll=new JScrollPane(section);scroll.getVerticalScrollBar().setUnitIncrement(24);
+            preview.addTab(s.draft.name,scroll);
         }
+        if(selected>=0 && selected<preview.getTabCount())preview.setSelectedIndex(selected);
         preview.revalidate();preview.repaint();
     }
     private final class EditorModel extends AbstractTableModel {
