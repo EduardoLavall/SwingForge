@@ -164,6 +164,7 @@ public final class Generator {
             "Se lib/mysql-connector-j-8.1.0.jar estiver ausente, importe o ZIP no SwingForge.\n");
         String mainSource="src/"+spec.pkg.replace('.', '/')+"/Main.java";
         files.put("run.bat", "@echo off\r\nsetlocal EnableExtensions\r\ncd /d \"%~dp0\"\r\n"+
+            "if not exist \"lib\\\\mysql-connector-j-8.1.0.jar\" (echo [ERRO] Driver MySQL ausente em lib\\\\. & pause & exit /b 1)\r\n"+
             "if exist \"tools\\ant\\bin\\ant.bat\" (call \"tools\\ant\\bin\\ant.bat\" run & goto :end)\r\n"+
             "where ant >nul 2>&1\r\nif not errorlevel 1 (call ant run & goto :end)\r\n"+
             "where javac >nul 2>&1\r\nif errorlevel 1 (echo [ERRO] JDK/javac nao encontrado. Instale um JDK offline. & pause & exit /b 1)\r\n"+
@@ -173,6 +174,7 @@ public final class Generator {
             "java -cp \"build\\classes;lib\\*\" "+spec.pkg+".Main\r\n"+
             ":end\r\nif errorlevel 1 pause\r\n");
         files.put("run.sh", "#!/bin/sh\nset -eu\ncd \"$(dirname \"$0\")\"\n"+
+            "if [ ! -f lib/mysql-connector-j-8.1.0.jar ]; then echo '[ERRO] Driver MySQL ausente em lib/' >&2; exit 1; fi\n"+
             "if [ -x tools/ant/bin/ant ]; then exec tools/ant/bin/ant run; fi\n"+
             "if command -v ant >/dev/null 2>&1; then exec ant run; fi\n"+
             "if ! command -v javac >/dev/null 2>&1; then echo '[ERRO] JDK/javac ausente.' >&2; exit 1; fi\n"+
