@@ -15,6 +15,6 @@ public final class SwingForge {
             System.out.println("Arquivos gerados: "+Generator.generate(Spec.example(),Paths.get(args[1]).toAbsolutePath()));
             return;
         }
-        Dark.defaults();SwingUtilities.invokeLater(()->new SwingForgeApp().setVisible(true));
+        Light.defaults();SwingUtilities.invokeLater(()->new SwingForgeApp().setVisible(true));
     }
 }
