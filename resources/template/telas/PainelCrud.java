@@ -21,6 +21,8 @@ public class PainelCrud extends JPanel {
     private List<Registro> registros=new ArrayList<Registro>();
     private Integer editando=null;
     private Object[] valoresOriginais;
+    private Runnable aoAlterar=()->{};
+    private boolean atualizandoTabela;
 
     protected PainelCrud(String titulo,CrudDAO dao,String[] rotulos,
             int[] ordem,String[] labels,String[] widgets,String[] options){
@@ -69,7 +71,7 @@ public class PainelCrud extends JPanel {
         save.addActionListener(e->salvar());remove.addActionListener(e->excluir());
         buscar.addActionListener(e->carregar());refresh.addActionListener(e->{busca.setText("");carregar();});
         busca.addActionListener(e->carregar());
-        tabela.getSelectionModel().addListSelectionListener(e->{if(!e.getValueIsAdjusting())selecionar();});
+        tabela.getSelectionModel().addListSelectionListener(e->{if(!atualizandoTabela && !e.getValueIsAdjusting())selecionar();});
     }
     public void carregar(){
         try{
@@ -78,6 +80,24 @@ public class PainelCrud extends JPanel {
             for(Registro r:registros){Object[] row=new Object[r.exibicao.length+1];row[0]=r.id;
                 System.arraycopy(r.exibicao,0,row,1,r.exibicao.length);modelo.addRow(row);}
         }catch(Exception ex){mostrarErro("Nao foi possivel consultar o banco",ex);}
+    }
+    public void aoAlterar(Runnable acao){aoAlterar=acao;}
+    public void atualizarSemLimpar(){
+        try{
+            carregarOpcoes();
+            List<Registro> atualizados=dao.listar(busca.getText());
+            atualizandoTabela=true;
+            try{
+                registros=atualizados;modelo.setRowCount(0);
+                int selecionado=-1;
+                for(int i=0;i<registros.size();i++){
+                    Registro r=registros.get(i);Object[] row=new Object[r.exibicao.length+1];row[0]=r.id;
+                    System.arraycopy(r.exibicao,0,row,1,r.exibicao.length);modelo.addRow(row);
+                    if(editando!=null && editando.intValue()==r.id)selecionado=i;
+                }
+                if(selecionado>=0)tabela.setRowSelectionInterval(selecionado,selecionado);
+            } finally {atualizandoTabela=false;}
+        }catch(Exception ex){mostrarErro("Nao foi possivel atualizar a secao",ex);}
     }
     private void carregarOpcoes()throws SQLException{
         for(int i=0;i<inputs.length;i++)if(inputs[i] instanceof JComboBox && "Relacao".equals(dao.tipos[i])){
@@ -105,7 +125,7 @@ public class PainelCrud extends JPanel {
         return values;
     }
     private void salvar(){
-        try{dao.salvar(editando,lerCampos());limpar();carregar();
+        try{dao.salvar(editando,lerCampos());limpar();carregar();aoAlterar.run();
             JOptionPane.showMessageDialog(this,"Registro salvo com sucesso.");
         }catch(Exception ex){mostrarErro("Nao foi possivel salvar",ex);}
     }
@@ -113,7 +133,7 @@ public class PainelCrud extends JPanel {
         if(editando==null){JOptionPane.showMessageDialog(this,"Selecione um registro na tabela.");return;}
         if(JOptionPane.showConfirmDialog(this,"Excluir registro #"+editando+"?","Confirmar",
                 JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
-        try{dao.excluir(editando.intValue());limpar();carregar();}
+        try{dao.excluir(editando.intValue());limpar();carregar();aoAlterar.run();}
         catch(Exception ex){mostrarErro("Nao foi possivel excluir (verifique relacionamentos)",ex);}
     }
     private void selecionar(){

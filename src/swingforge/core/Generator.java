@@ -179,7 +179,7 @@ public final class Generator {
             files.put(src+"beans/"+e.name+".java",bean(spec,e));
             files.put(src+"dao/"+e.name+"DAO.java",dao(spec,e));
             files.put(src+"telas/Tela"+e.name+".java",tela(spec,e));
-            tabs.append("        tabs.addTab(").append(q(e.name)).append(",new Tela").append(e.name).append("());\n");
+            tabs.append("        adicionarSecao(").append(q(e.name)).append(",new Tela").append(e.name).append("());\n");
         }
         files.put(src+"telas/TelaPrincipal.java",interpolar(loadTemplate("telas/TelaPrincipal.java"),spec)
             .replace("__TABS__",tabs.toString()));
