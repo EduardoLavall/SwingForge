@@ -11,5 +11,5 @@ Thumbs.db
 # Desenvolvimento local
 sandbox/
 
-# Driver do professor importado localmente (nao versionar binarios de terceiros)
-tools/jdbc/*.jar
+# Connector/J 8.1.0 do professor acompanha o SwingForge para uso offline
+!tools/jdbc/mysql-connector-j-8.1.0.jar
