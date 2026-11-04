@@ -33,10 +33,9 @@ public final class Generator {
         return "VARCHAR(255)";
     }
     private static String title(String field) {String x=field.replace('_',' ');return Character.toUpperCase(x.charAt(0))+x.substring(1);}
-    private static String arr(String... xs){StringBuilder b=new StringBuilder("new String[]{");for(String x:xs){if(b.length()>13)b.append(',');b.append(q(x));}return b.append('}').toString();}
     private static String arrFields(Spec.Entity e,int variant,Spec spec){
-        StringBuilder b=new StringBuilder("new String[]{");
-        for(Spec.Field f:e.fields){if(b.charAt(b.length()-1)!='{')b.append(',');
+        StringBuilder b=new StringBuilder("new String[] {");
+        for(Spec.Field f:e.fields){if(b.charAt(b.length()-1)!='{')b.append(", ");
             switch(variant){
                 case 0:b.append(q(f.name));break;
                 case 1:b.append(q(f.type));break;
@@ -47,38 +46,53 @@ public final class Generator {
         }return b.append('}').toString();
     }
     private static Spec.Entity find(Spec s,String name){for(Spec.Entity e:s.entities)if(e.name.equals(name))return e;throw new IllegalArgumentException(name);}
-    private static String bools(Spec.Entity e){StringBuilder b=new StringBuilder("new boolean[]{");for(Spec.Field f:e.fields){if(b.charAt(b.length()-1)!='{')b.append(',');b.append(f.required);}return b.append('}').toString();}
-    public static String bean(Spec spec,Spec.Entity e){
-        StringBuilder b=new StringBuilder("package ").append(spec.pkg).append(".beans;\n\n");
-        b.append("/** Modelo de dados da entidade ").append(e.name).append(". */\npublic class ").append(e.name).append(" {\n");
-        b.append("    private Integer id;\n");
-        for(Spec.Field f:e.fields)b.append("    private ").append(javaType(f.type)).append(' ').append(f.name).append(";\n");
-        b.append("\n    public ").append(e.name).append("() {}\n");
-        b.append("    public Integer getId(){return id;}\n    public void setId(Integer id){this.id=id;}\n");
-        for(Spec.Field f:e.fields){String title=upper(f.name);String t=javaType(f.type);
-            b.append("    public ").append(t).append(" get").append(title).append("(){return ").append(f.name).append(";}\n");
-            b.append("    public void set").append(title).append('(').append(t).append(' ').append(f.name).append("){this.")
-             .append(f.name).append('=').append(f.name).append(";}\n");
+    private static String bools(Spec.Entity e){StringBuilder b=new StringBuilder("new boolean[] {");for(Spec.Field f:e.fields){if(b.charAt(b.length()-1)!='{')b.append(", ");b.append(f.required);}return b.append('}').toString();}
+    public static String bean(Spec spec, Spec.Entity e) {
+        StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(".beans;\n\n");
+        b.append("/** Modelo de dados da entidade ").append(e.name).append(". */\n")
+            .append("public class ").append(e.name).append(" {\n")
+            .append("    private Integer id;\n");
+        for (Spec.Field f : e.fields) {
+            b.append("    private ").append(javaType(f.type)).append(' ').append(f.name).append(";\n");
+        }
+        b.append("\n    public ").append(e.name).append("() {\n    }\n\n")
+            .append("    public Integer getId() {\n        return id;\n    }\n\n")
+            .append("    public void setId(Integer id) {\n        this.id = id;\n    }\n");
+        for (Spec.Field f : e.fields) {
+            String label = upper(f.name);
+            String type = javaType(f.type);
+            b.append("\n    public ").append(type).append(" get").append(label)
+                .append("() {\n        return ").append(f.name).append(";\n    }\n\n")
+                .append("    public void set").append(label).append('(').append(type).append(' ')
+                .append(f.name).append(") {\n        this.").append(f.name).append(" = ")
+                .append(f.name).append(";\n    }\n");
         }
         return b.append("}\n").toString();
     }
-    public static String dao(Spec spec,Spec.Entity e){
-        return "package "+spec.pkg+".dao;\n\n/** CRUD SQL da entidade "+e.name+". */\n"+
-                "public final class "+e.name+"DAO extends CrudDAO {\n"+
-                "    public "+e.name+"DAO(){\n        super("+q(Spec.table(e.name))+",\n            "+
-                arrFields(e,0,spec)+",\n            "+arrFields(e,1,spec)+",\n            "+
-                arrFields(e,2,spec)+",\n            "+arrFields(e,3,spec)+",\n            "+bools(e)+");\n    }\n}\n";
+    public static String dao(Spec spec, Spec.Entity e) {
+        return "package " + spec.pkg + ".dao;\n\n"
+            + "/** CRUD SQL da entidade " + e.name + ". */\n"
+            + "public final class " + e.name + "DAO extends CrudDAO {\n"
+            + "    public " + e.name + "DAO() {\n"
+            + "        super(\n"
+            + "            " + q(Spec.table(e.name)) + ",\n"
+            + "            " + arrFields(e, 0, spec) + ",\n"
+            + "            " + arrFields(e, 1, spec) + ",\n"
+            + "            " + arrFields(e, 2, spec) + ",\n"
+            + "            " + arrFields(e, 3, spec) + ",\n"
+            + "            " + bools(e) + ");\n"
+            + "    }\n}\n";
     }
     /** Ordenacao e rotulos independentes dos campos SQL, configurados no GUI Editor. */
     private static String arrayOf(List<String> values){
-        StringBuilder b=new StringBuilder("new String[]{");
-        for(String x:values){if(b.charAt(b.length()-1)!='{')b.append(',');b.append(q(x));}
+        StringBuilder b=new StringBuilder("new String[] {");
+        for(String x:values){if(b.charAt(b.length()-1)!='{')b.append(", ");b.append(q(x));}
         return b.append('}').toString();
     }
     private static String formIndices(Spec.Entity e){
-        FormDesign.normalize(e);StringBuilder b=new StringBuilder("new int[]{");
+        FormDesign.normalize(e);StringBuilder b=new StringBuilder("new int[] {");
         for(Spec.FormField u:e.formFields)if(u.visible){
-            if(b.charAt(b.length()-1)!='{')b.append(',');
+            if(b.charAt(b.length()-1)!='{')b.append(", ");
             for(int i=0;i<e.fields.size();i++)if(e.fields.get(i).name.equals(u.field)){b.append(i);break;}
         }
         return b.append('}').toString();
@@ -98,13 +112,21 @@ public final class Generator {
         }
         return arrayOf(values);
     }
-    public static String tela(Spec spec,Spec.Entity e){
-        return "package "+spec.pkg+".telas;\n\nimport "+spec.pkg+".dao."+e.name+"DAO;\n\n"+
-            "/** Formulario Swing gerado pelo GUI Builder do SwingForge. */\n"+
-            "public final class Tela"+e.name+" extends PainelCrud {\n"+
-            "    public Tela"+e.name+"(){super("+q(e.formTitle)+",new "+e.name+"DAO(),"+
-               tableLabels(e)+","+formIndices(e)+","+formArray(e,0)+","+
-               formArray(e,1)+","+formArray(e,2)+");}\n}\n";
+    public static String tela(Spec spec, Spec.Entity e) {
+        return "package " + spec.pkg + ".telas;\n\n"
+            + "import " + spec.pkg + ".dao." + e.name + "DAO;\n\n"
+            + "/** Formulario Swing gerado pelo GUI Builder do SwingForge. */\n"
+            + "public final class Tela" + e.name + " extends PainelCrud {\n"
+            + "    public Tela" + e.name + "() {\n"
+            + "        super(\n"
+            + "            " + q(e.formTitle) + ",\n"
+            + "            new " + e.name + "DAO(),\n"
+            + "            " + tableLabels(e) + ",\n"
+            + "            " + formIndices(e) + ",\n"
+            + "            " + formArray(e, 0) + ",\n"
+            + "            " + formArray(e, 1) + ",\n"
+            + "            " + formArray(e, 2) + ");\n"
+            + "    }\n}\n";
     }
     public static String sql(Spec spec){
         StringBuilder b=new StringBuilder("-- Gerado offline pelo SwingForge. Execute no MySQL local.\nCREATE DATABASE IF NOT EXISTS `")
@@ -172,7 +194,7 @@ public final class Generator {
         Map<String,String> files=new LinkedHashMap<String,String>();
         String src="src/"+spec.pkg.replace('.','/')+"/";
         addTemplate(files,spec,"Main.java",src+"Main.java");
-        for(String name:new String[]{"conexao/Conexao.java","dao/Registro.java","dao/Opcao.java","dao/CrudDAO.java",
+        for(String name:new String[] {"conexao/Conexao.java","dao/Registro.java","dao/Opcao.java","dao/CrudDAO.java",
             "telas/Tema.java","telas/PainelCrud.java"})addTemplate(files,spec,name,src+name);
         StringBuilder tabs=new StringBuilder();
         for(Spec.Entity e:spec.entities){
