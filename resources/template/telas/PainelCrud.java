@@ -83,7 +83,6 @@ public class PainelCrud extends JPanel {
         searchbar.add(buscar);
         searchbar.add(refresh);
         add(searchbar, BorderLayout.SOUTH);
-        Tema.aplicar(this);
         clear.addActionListener(e -> limpar());
         edit.addActionListener(e -> selecionar());
         save.addActionListener(e -> salvar());

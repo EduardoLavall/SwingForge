@@ -19,7 +19,6 @@ public final class TelaPrincipal extends JFrame {
 __TABS__
         content.add(secoes, BorderLayout.CENTER);
         setContentPane(content);
-        Tema.aplicar(content);
         SwingUtilities.invokeLater(() -> configurar());
     }
 

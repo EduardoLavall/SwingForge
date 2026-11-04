@@ -250,7 +250,7 @@ public final class Generator {
         String src="src/"+spec.pkg.replace('.','/')+"/";
         addTemplate(files,spec,"Main.java",src+"Main.java");
         for(String name:new String[] {"conexao/Conexao.java","dao/Registro.java","dao/Opcao.java","dao/CrudDAO.java",
-            "telas/Tema.java","telas/PainelCrud.java"})addTemplate(files,spec,name,src+name.substring(name.lastIndexOf('/')+1));
+            "telas/PainelCrud.java"})addTemplate(files,spec,name,src+name.substring(name.lastIndexOf('/')+1));
         StringBuilder tabs=new StringBuilder();
         for(Spec.Entity e:spec.entities){
             files.put(src+e.name+".java",bean(spec,e));
