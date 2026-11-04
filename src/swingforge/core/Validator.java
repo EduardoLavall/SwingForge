@@ -44,6 +44,7 @@ public final class Validator {
                     throw new IllegalArgumentException("Defina a entidade vinculada em " + e.name + "." + f.name);
             }
         }
+        for (Spec.Entity e : s.entities) FormDesign.validate(e);
         for (Spec.Entity e : s.entities) for (Spec.Field f : e.fields) if ("Relacao".equals(f.type)) {
             boolean exists = false;
             for (Spec.Entity target : s.entities) if (target.name.equals(f.reference)) exists = true;
