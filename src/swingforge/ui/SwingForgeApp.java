@@ -181,10 +181,10 @@ public final class SwingForgeApp extends JFrame {
             JOptionPane.QUESTION_MESSAGE,null,options,f.reference);
         if(answer!=null){f.reference=answer.toString();campos.fireTableDataChanged();}}
     private void editForm(){
-        Spec.Entity entity=selected();if(entity==null)return;
+        if(spec.entities.isEmpty())return;
         flushEditors();
-        if(FormEditor.edit(this,entity))
-            message("Formulario de "+entity.name+" atualizado. Gere o projeto para aplicar as mudancas.");
+        if(FormEditor.edit(this,spec))
+            message("Tela completa atualizada. Salve o modelo e gere o projeto para aplicar as mudancas.");
     }
     private void newProject(){if(JOptionPane.showConfirmDialog(this,"Criar um novo projeto? Alteracoes nao salvas serao perdidas.",
             "Novo projeto",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
