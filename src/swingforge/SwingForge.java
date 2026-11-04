@@ -1,7 +1,7 @@
 package swingforge;
 
 import javax.swing.SwingUtilities;
-import swingforge.ui.Dark;
+import swingforge.ui.Light;
 import swingforge.ui.SwingForgeApp;
 import swingforge.core.Generator;
 import swingforge.core.Spec;
