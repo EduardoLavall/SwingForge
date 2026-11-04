@@ -12,13 +12,8 @@ public final class TelaPrincipal extends JFrame {
         super("__APP_NAME__ — Java Swing + MySQL");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);setSize(1020,720);setLocationRelativeTo(null);
         JPanel content=new JPanel(new BorderLayout());
-        JPanel header=new JPanel(new FlowLayout(FlowLayout.RIGHT,10,8));
-        JButton configurar=new JButton("Configurar MySQL"), reload=new JButton("Atualizar listas");
-        header.add(configurar);header.add(reload);content.add(header,BorderLayout.NORTH);
 __TABS__
         content.add(secoes,BorderLayout.CENTER);setContentPane(content);Tema.aplicar(content);
-        configurar.addActionListener(e->configurar());
-        reload.addActionListener(e->atualizar());
         SwingUtilities.invokeLater(()->configurar());
     }
     private void configurar(){
