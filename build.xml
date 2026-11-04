@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="SwingForge" default="jar" basedir=".">
+    <target name="clean"><delete dir="build"/><delete dir="dist"/></target>
+    <target name="compile">
+        <mkdir dir="build/classes"/>
+        <javac srcdir="src" destdir="build/classes" includeantruntime="false"
+               source="8" target="8" encoding="UTF-8" debug="true"/>
+        <copy todir="build/classes"><fileset dir="resources"/></copy>
+    </target>
+    <target name="jar" depends="compile">
+        <mkdir dir="dist"/>
+        <jar basedir="build/classes" destfile="dist/SwingForge.jar">
+            <manifest><attribute name="Main-Class" value="swingforge.SwingForge"/></manifest>
+        </jar>
+    </target>
+    <target name="run" depends="jar">
+        <java jar="dist/SwingForge.jar" fork="true" failonerror="true"/>
+    </target>
+</project>
