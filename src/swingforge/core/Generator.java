@@ -109,7 +109,10 @@ public final class Generator {
         "      <classpath refid=\"jdbc\"/>\n    </javac>\n  </target>\n"+
         "  <target name=\"jar\" depends=\"compile\">\n    <mkdir dir=\"dist\"/>\n"+
         "    <jar destfile=\"dist/"+spec.name+".jar\" basedir=\"build/classes\">\n"+
-        "      <manifest><attribute name=\"Main-Class\" value=\"${main.class}\"/></manifest>\n    </jar>\n  </target>\n"+
+        "      <manifest>\n"+
+        "        <attribute name=\"Main-Class\" value=\"${main.class}\"/>\n"+
+        "        <attribute name=\"Class-Path\" value=\"../lib/mysql-connector-j-8.1.0.jar\"/>\n"+
+        "      </manifest>\n    </jar>\n  </target>\n"+
         "  <target name=\"run\" depends=\"compile\">\n"+
         "    <java classname=\"${main.class}\" fork=\"true\" failonerror=\"true\">\n"+
         "      <classpath><pathelement location=\"build/classes\"/><path refid=\"jdbc\"/></classpath>\n"+
