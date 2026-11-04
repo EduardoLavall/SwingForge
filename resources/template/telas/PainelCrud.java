@@ -11,7 +11,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Formulario Swing gerado em Java puro. GUI Builder (.form) previsto para a etapa 2. */
+/** Formulario Swing automaticamente gerado pelo SwingForge, seguindo o exemplo de eventos. */
 public class PainelCrud extends JPanel {
     private final CrudDAO dao;
     private final JComponent[] inputs;
@@ -21,37 +21,50 @@ public class PainelCrud extends JPanel {
     private List<Registro> registros=new ArrayList<Registro>();
     private Integer editando=null;
 
-    protected PainelCrud(String titulo,CrudDAO dao,String[] rotulos){
-        super(new BorderLayout(12,12));this.dao=dao;inputs=new JComponent[dao.campos.length];
-        setBorder(BorderFactory.createEmptyBorder(18,20,18,20));
-        JPanel top=new JPanel(new BorderLayout(0,12));
-        JLabel heading=new JLabel(titulo);heading.setFont(new Font("Dialog",Font.BOLD,22));top.add(heading,BorderLayout.NORTH);
-        JPanel form=new JPanel(new GridBagLayout());GridBagConstraints gc=new GridBagConstraints();
-        gc.insets=new Insets(5,5,5,10);gc.anchor=GridBagConstraints.WEST;gc.fill=GridBagConstraints.HORIZONTAL;
-        for(int i=0;i<dao.campos.length;i++){
-            gc.gridx=(i%2)*2;gc.gridy=i/2;gc.weightx=0;
-            String caption=rotulos[i]+(dao.obrigatorios[i]?" *":"");form.add(new JLabel(caption),gc);
-            gc.gridx++;gc.weightx=1;
+    protected PainelCrud(String titulo,CrudDAO dao,String[] rotulos,
+            int[] ordem,String[] labels,String[] widgets,String[] options){
+        super(new BorderLayout(10,10));this.dao=dao;inputs=new JComponent[dao.campos.length];
+        setBorder(BorderFactory.createEmptyBorder(10,14,10,14));
+        JPanel top=new JPanel(new BorderLayout(8,8));
+        JPanel form=new JPanel(new GridBagLayout());
+        form.setBorder(BorderFactory.createTitledBorder(titulo));
+        GridBagConstraints gc=new GridBagConstraints();
+        gc.insets=new Insets(5,6,5,6);gc.anchor=GridBagConstraints.WEST;
+        for(int row=0;row<ordem.length;row++){
+            int i=ordem[row];gc.gridx=0;gc.gridy=row;gc.weightx=0;gc.fill=GridBagConstraints.NONE;
+            form.add(new JLabel(labels[row]+(dao.obrigatorios[i]?" *":"")+":"),gc);
+            gc.gridx=1;gc.weightx=1;gc.fill=GridBagConstraints.HORIZONTAL;
             JComponent input;
             if("Relacao".equals(dao.tipos[i]))input=new JComboBox<Opcao>();
-            else if("Booleano".equals(dao.tipos[i]))input=new JCheckBox("Ativo");
-            else input=new JTextField(18);
+            else if("Booleano".equals(dao.tipos[i]))input=new JCheckBox("Sim");
+            else if("Radio".equals(widgets[row]))input=new RadioOptions(options[row]);
+            else if("Combo".equals(widgets[row])){
+                JComboBox<String> combo=new JComboBox<String>();
+                if(!dao.obrigatorios[i])combo.addItem("");
+                for(String text:options[row].split("\\|"))
+                    if(!text.trim().isEmpty())combo.addItem(text.trim());
+                input=combo;
+            }else input=new JTextField(20);
             inputs[i]=input;form.add(input,gc);
         }
         top.add(form,BorderLayout.CENTER);
-        JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEFT,8,0));
-        JButton save=new JButton("Salvar"), clear=new JButton("Novo / Limpar"), remove=new JButton("Excluir selecionado");
-        actions.add(save);actions.add(clear);actions.add(remove);top.add(actions,BorderLayout.SOUTH);
-        add(top,BorderLayout.NORTH);
-        String[] headers=new String[rotulos.length+1];headers[0]="ID";System.arraycopy(rotulos,0,headers,1,rotulos.length);
+        JPanel actions=new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0));
+        JButton clear=new JButton("Novo / Limpar"),edit=new JButton("Editar selecionado");
+        JButton remove=new JButton("Excluir selecionado"),save=new JButton("Salvar");
+        actions.add(clear);actions.add(edit);actions.add(remove);actions.add(save);
+        top.add(actions,BorderLayout.SOUTH);add(top,BorderLayout.NORTH);
+        String[] headers=new String[rotulos.length+1];headers[0]="ID";
+        System.arraycopy(rotulos,0,headers,1,rotulos.length);
         modelo=new DefaultTableModel(headers,0){@Override public boolean isCellEditable(int row,int column){return false;}};
-        tabela=new JTable(modelo);add(new JScrollPane(tabela),BorderLayout.CENTER);
+        tabela=new JTable(modelo);tabela.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        add(new JScrollPane(tabela),BorderLayout.CENTER);
         JPanel searchbar=new JPanel(new FlowLayout(FlowLayout.LEFT));
-        searchbar.add(new JLabel("Buscar por nome / categoria:"));searchbar.add(busca);
-        JButton buscar=new JButton("Buscar"), refresh=new JButton("Recarregar");
+        searchbar.add(new JLabel("Buscar:"));searchbar.add(busca);
+        JButton buscar=new JButton("Buscar"),refresh=new JButton("Recarregar");
         searchbar.add(buscar);searchbar.add(refresh);add(searchbar,BorderLayout.SOUTH);
-        Tema.aplicar(this);heading.setForeground(Tema.TEXTO);heading.setFont(new Font("Dialog",Font.BOLD,22));
-        save.addActionListener(e->salvar());clear.addActionListener(e->limpar());remove.addActionListener(e->excluir());
+        Tema.aplicar(this);
+        clear.addActionListener(e->limpar());edit.addActionListener(e->selecionar());
+        save.addActionListener(e->salvar());remove.addActionListener(e->excluir());
         buscar.addActionListener(e->carregar());refresh.addActionListener(e->{busca.setText("");carregar();});
         busca.addActionListener(e->carregar());
         tabela.getSelectionModel().addListSelectionListener(e->{if(!e.getValueIsAdjusting())selecionar();});
@@ -64,7 +77,7 @@ public class PainelCrud extends JPanel {
         }catch(Exception ex){mostrarErro("Nao foi possivel consultar o banco",ex);}
     }
     private void carregarOpcoes()throws SQLException{
-        for(int i=0;i<inputs.length;i++)if(inputs[i] instanceof JComboBox){
+        for(int i=0;i<inputs.length;i++)if(inputs[i] instanceof JComboBox && "Relacao".equals(dao.tipos[i])){
             @SuppressWarnings("unchecked") JComboBox<Opcao> cb=(JComboBox<Opcao>)inputs[i];
             Integer previous=cb.getSelectedItem() instanceof Opcao?((Opcao)cb.getSelectedItem()).id:null;
             cb.removeAllItems();if(!dao.obrigatorios[i])cb.addItem(new Opcao(0,"(Nao selecionado)"));
@@ -75,10 +88,16 @@ public class PainelCrud extends JPanel {
     private Object[] lerCampos(){
         Object[] values=new Object[inputs.length];
         for(int i=0;i<inputs.length;i++){
-            if(inputs[i] instanceof JCheckBox)values[i]=Boolean.toString(((JCheckBox)inputs[i]).isSelected());
-            else if(inputs[i] instanceof JComboBox){Opcao op=(Opcao)((JComboBox<?>)inputs[i]).getSelectedItem();
-                values[i]=op==null||op.id==0?"":Integer.toString(op.id);}
-            else values[i]=((JTextField)inputs[i]).getText();
+            JComponent c=inputs[i];
+            if(c==null){values[i]="";continue;}
+            if(c instanceof RadioOptions)values[i]=((RadioOptions)c).value();
+            else if(c instanceof JCheckBox)values[i]=Boolean.toString(((JCheckBox)c).isSelected());
+            else if(c instanceof JComboBox){
+                Object selected=((JComboBox<?>)c).getSelectedItem();
+                if(selected instanceof Opcao){
+                    int id=((Opcao)selected).id;values[i]=id==0?"":String.valueOf(id);
+                }else values[i]=selected==null?"":String.valueOf(selected);
+            }else values[i]=((JTextField)c).getText().trim();
         }
         return values;
     }
@@ -99,22 +118,51 @@ public class PainelCrud extends JPanel {
         int index=tabela.convertRowIndexToModel(view);if(index<0||index>=registros.size())return;
         Registro r=registros.get(index);editando=Integer.valueOf(r.id);
         for(int i=0;i<inputs.length;i++){
-            Object v=r.valores[i];
-            if(inputs[i] instanceof JCheckBox)((JCheckBox)inputs[i]).setSelected(Boolean.TRUE.equals(v)||"1".equals(String.valueOf(v)));
-            else if(inputs[i] instanceof JComboBox){@SuppressWarnings("unchecked") JComboBox<Opcao> cb=(JComboBox<Opcao>)inputs[i];
-                for(int k=0;k<cb.getItemCount();k++)if(v!=null&&String.valueOf(v).equals(String.valueOf(cb.getItemAt(k).id))){cb.setSelectedIndex(k);break;}}
-            else ((JTextField)inputs[i]).setText(v==null?"":String.valueOf(v));
+            JComponent c=inputs[i];if(c==null)continue;
+            Object value=r.valores[i];String str=value==null?"":String.valueOf(value);
+            if(c instanceof RadioOptions)((RadioOptions)c).select(str);
+            else if(c instanceof JCheckBox)((JCheckBox)c).setSelected(Boolean.TRUE.equals(value)||"1".equals(str));
+            else if(c instanceof JComboBox){
+                JComboBox<?> cb=(JComboBox<?>)c;
+                if("Relacao".equals(dao.tipos[i])){
+                    for(int j=0;j<cb.getItemCount();j++)
+                        if(cb.getItemAt(j) instanceof Opcao &&
+                           str.equals(String.valueOf(((Opcao)cb.getItemAt(j)).id))){cb.setSelectedIndex(j);break;}
+                }else cb.setSelectedItem(str);
+            }else ((JTextField)c).setText(str);
         }
     }
     private void limpar(){editando=null;tabela.clearSelection();
-        for(JComponent component:inputs){
-            if(component instanceof JTextField)((JTextField)component).setText("");
-            else if(component instanceof JCheckBox)((JCheckBox)component).setSelected(false);
-            else if(component instanceof JComboBox && ((JComboBox<?>)component).getItemCount()>0)
-                ((JComboBox<?>)component).setSelectedIndex(0);
+        for(JComponent c:inputs){
+            if(c instanceof RadioOptions)((RadioOptions)c).clear();
+            else if(c instanceof JTextField)((JTextField)c).setText("");
+            else if(c instanceof JCheckBox)((JCheckBox)c).setSelected(false);
+            else if(c instanceof JComboBox && ((JComboBox<?>)c).getItemCount()>0)
+                ((JComboBox<?>)c).setSelectedIndex(0);
         }
     }
     private void mostrarErro(String acao,Exception ex){
         JOptionPane.showMessageDialog(this,acao+":\n"+ex.getMessage(),"Problema",JOptionPane.ERROR_MESSAGE);
+    }
+    private static final class RadioOptions extends JPanel {
+        private final ButtonGroup group=new ButtonGroup();
+        RadioOptions(String options){
+            super(new FlowLayout(FlowLayout.LEFT,7,0));
+            for(String raw:options.split("\\|")){
+                String value=raw.trim();if(value.isEmpty())continue;
+                JRadioButton button=new JRadioButton(value);group.add(button);add(button);
+            }
+        }
+        String value(){
+            for(java.util.Enumeration<AbstractButton> b=group.getElements();b.hasMoreElements();){
+                AbstractButton button=b.nextElement();if(button.isSelected())return button.getText();
+            }return "";
+        }
+        void select(String value){group.clearSelection();
+            for(java.util.Enumeration<AbstractButton> b=group.getElements();b.hasMoreElements();){
+                AbstractButton button=b.nextElement();if(button.getText().equals(value)){button.setSelected(true);break;}
+            }
+        }
+        void clear(){group.clearSelection();}
     }
 }
