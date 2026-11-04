@@ -1,6 +1,7 @@
 package swingforge.ui;
 
 import swingforge.core.Generator;
+import swingforge.core.MysqlDriver;
 import swingforge.core.ProjectStore;
 import swingforge.core.Spec;
 import swingforge.core.Validator;
@@ -33,7 +34,7 @@ public final class SwingForgeApp extends JFrame {
     private final JLabel status=Dark.label("Pronto para criar seu primeiro projeto.",12,true);
     private final JLabel title=Dark.label("Campos",17,false);
     private final JTextArea log=new JTextArea(6,80);
-    private final JPanel advancedPanel=new JPanel(new GridLayout(2,2,12,8));
+    private final JPanel advancedPanel=new JPanel(new GridLayout(3,2,12,8));
     private boolean advancedShown=false, busy=false;
     private final JButton gerar=Dark.button("Gerar pasta do projeto",true);
     private final JButton compilar=Dark.button("Compilar e testar",false);
@@ -87,7 +88,11 @@ public final class SwingForgeApp extends JFrame {
         config.add(toggle,BorderLayout.CENTER);
         advancedPanel.setBackground(Dark.PANEL);
         advancedPanel.add(Dark.label("Pacote Java",12,true));advancedPanel.add(Dark.label("Banco MySQL",12,true));
-        advancedPanel.add(pacote);advancedPanel.add(banco);advancedPanel.setVisible(false);
+        advancedPanel.add(pacote);advancedPanel.add(banco);
+        JButton importarJDBC=Dark.button("Importar Connector/J 8.1.0",false);
+        advancedPanel.add(Dark.label("Driver JDBC (offline)",12,true));
+        advancedPanel.add(importarJDBC);
+        importarJDBC.addActionListener(e->importDriver());advancedPanel.setVisible(false);
         config.add(advancedPanel,BorderLayout.SOUTH);
         toggle.addActionListener(e->{advancedShown=!advancedShown;advancedPanel.setVisible(advancedShown);
             toggle.setText(advancedShown?"⚙  Opções avançadas  ▴":"⚙  Opções avançadas  ▾");config.revalidate();});
@@ -172,6 +177,20 @@ public final class SwingForgeApp extends JFrame {
         if(ch.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return null;
         return ch.getSelectedFile().toPath().resolve(spec.name);
     }
+    private void importDriver(){
+        JFileChooser ch=new JFileChooser();
+        ch.setDialogTitle("Selecione o ZIP do professor ou mysql-connector-j-8.1.0.jar");
+        ch.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        if(ch.showOpenDialog(this)!=JFileChooser.APPROVE_OPTION)return;
+        try{
+            Path copied=MysqlDriver.importFile(ch.getSelectedFile().toPath());
+            message("Connector/J 8.1.0 importado localmente: "+copied);
+            if(root!=null && Files.isDirectory(root.resolve("lib"))){
+                MysqlDriver.copyTo(root,root.resolve(".swingforge/backups/import-driver"));
+                message("Driver atualizado no projeto: "+root.resolve("lib").resolve(MysqlDriver.NAME));
+            }
+        }catch(Exception ex){error("Nao foi possivel importar o Connector/J",ex);}
+    }
     private void saveModel(){try{flushEditors();Validator.validate(spec);Path dest=chooseRoot();if(dest==null)return;
         Files.createDirectories(dest);ProjectStore.write(dest.resolve("swingforge.json"),spec);root=dest;
         message("Modelo salvo: "+dest.resolve("swingforge.json"));
@@ -180,7 +199,10 @@ public final class SwingForgeApp extends JFrame {
         if(root!=null && Files.exists(dest.resolve("src"))){int conf=JOptionPane.showConfirmDialog(this,
             "Regenerar codigo pode sobrescrever mudancas manuais. Backups serao salvos em .swingforge/backups. Continuar?",
             "Confirmar geracao",JOptionPane.YES_NO_OPTION);if(conf!=JOptionPane.YES_OPTION)return false;}
-        int count=Generator.generate(spec,dest);root=dest;message("Projeto gerado em "+dest+" ("+count+" arquivos).");return true;
+        int count=Generator.generate(spec,dest);root=dest;message("Projeto gerado em "+dest+" ("+count+" arquivos).");
+        if(MysqlDriver.find()==null)message("ATENCAO: Connector/J nao encontrado. Abra Opcoes avancadas > Importar Connector/J 8.1.0.");
+        else message("Conector do professor disponivel em lib/"+MysqlDriver.NAME);
+        return true;
     }catch(Exception ex){error("Erro ao gerar",ex);return false;}}
     private void compile(){
         if(root==null){if(!generate())return;}
