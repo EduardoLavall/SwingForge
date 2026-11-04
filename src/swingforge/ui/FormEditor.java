@@ -15,7 +15,9 @@ import java.util.List;
 public final class FormEditor extends JDialog {
     private final List<Section> sections=new ArrayList<Section>();
     private final JTabbedPane preview=new JTabbedPane();
-    private boolean accepted;
+    private final CardLayout editorLayout=new CardLayout();
+    private final JPanel editors=new JPanel(editorLayout);
+    private boolean accepted, rebuildingPreview;
 
     public static boolean edit(Frame owner,Spec spec){
         FormEditor editor=new FormEditor(owner,spec);
@@ -28,10 +30,18 @@ public final class FormEditor extends JDialog {
         body.setBorder(new EmptyBorder(16,16,16,16));setContentPane(body);
         JPanel headline=new JPanel(new GridLayout(2,1));headline.setBackground(Light.BG);
         headline.add(Light.label("Personalizar tela completa",20,false));
-        headline.add(Light.label("Edite as entidades abaixo e confira cada aba na previa.",12,true));
+        headline.add(Light.label("Selecione uma aba na previa para editar os campos da entidade.",12,true));
         body.add(headline,BorderLayout.NORTH);
-        JPanel editors=new JPanel();editors.setLayout(new BoxLayout(editors,BoxLayout.Y_AXIS));editors.setBackground(Light.BG);
-        for(Spec.Entity entity:spec.entities){Section section=new Section(entity);sections.add(section);editors.add(section.panel);}
+        editors.setBackground(Light.BG);
+        for(Spec.Entity entity:spec.entities){
+            Section section=new Section(entity);sections.add(section);
+            editors.add(section.panel,String.valueOf(sections.size()-1));
+        }
+        preview.addChangeListener(e->{
+            if(rebuildingPreview || preview.getSelectedIndex()<0)return;
+            for(Section section:sections)section.stopEditing();
+            editorLayout.show(editors,String.valueOf(preview.getSelectedIndex()));
+        });
         JScrollPane editScroll=new JScrollPane(editors);editScroll.getVerticalScrollBar().setUnitIncrement(24);
         JPanel sample=new JPanel(new BorderLayout(6,6));sample.setBackground(Light.PANEL);
         sample.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Light.BORDER),new EmptyBorder(10,10,10,10)));
@@ -107,6 +117,7 @@ public final class FormEditor extends JDialog {
     }
     private void refresh(){
         int selected=preview.getSelectedIndex();
+        rebuildingPreview=true;
         preview.removeAll();
         for(Section s:sections){
             JPanel section=new JPanel(new BorderLayout(4,4));section.setBackground(Color.WHITE);
@@ -145,6 +156,8 @@ public final class FormEditor extends JDialog {
             preview.addTab(s.draft.name,scroll);
         }
         if(selected>=0 && selected<preview.getTabCount())preview.setSelectedIndex(selected);
+        rebuildingPreview=false;
+        if(preview.getSelectedIndex()>=0)editorLayout.show(editors,String.valueOf(preview.getSelectedIndex()));
         preview.revalidate();preview.repaint();
     }
     private final class EditorModel extends AbstractTableModel {
