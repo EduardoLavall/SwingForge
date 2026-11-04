@@ -263,19 +263,20 @@ public final class Generator {
         files.put("sql/01_criar_banco.sql",sql(spec));
         files.put("criar_banco.bat", "@echo off\r\nsetlocal EnableExtensions EnableDelayedExpansion\r\n"+
             "cd /d \"%~dp0\"\r\n"+
-            "if not exist \"sql\\01_criar_banco.sql\" (echo [ERRO] Script SQL nao encontrado. & pause & exit /b 1)\r\n"+
+            "set \"PAUSAR=1\"\r\nif /i \"%~1\"==\"--automatico\" set \"PAUSAR=0\"\r\n"+
+            "if not exist \"sql\\01_criar_banco.sql\" (\r\n  echo [ERRO] Script SQL nao encontrado.\r\n  if \"!PAUSAR!\"==\"1\" pause\r\n  exit /b 1\r\n)\r\n"+
             "set \"MYSQL_CLIENT=\"\r\n"+
             "where mysql >nul 2>&1\r\nif not errorlevel 1 set \"MYSQL_CLIENT=mysql\"\r\n"+
             "if not defined MYSQL_CLIENT for /d %%D in (\"%ProgramFiles%\\MySQL\\MySQL Server *\") do if exist \"%%~D\\bin\\mysql.exe\" set \"MYSQL_CLIENT=%%~D\\bin\\mysql.exe\"\r\n"+
-            "if not defined MYSQL_CLIENT (echo [ERRO] Cliente mysql.exe nao encontrado. Instale o cliente MySQL ou adicione-o ao PATH. & pause & exit /b 1)\r\n"+
+            "if not defined MYSQL_CLIENT (\r\n  echo [ERRO] Cliente mysql.exe nao encontrado. Instale o cliente MySQL ou adicione-o ao PATH.\r\n  if \"!PAUSAR!\"==\"1\" pause\r\n  exit /b 1\r\n)\r\n"+
             "echo Banco a preparar: "+spec.database+"\r\n"+
             "echo Informe os dados do servidor MySQL. Deixe em branco para usar os valores padrao.\r\n"+
             "set \"MYSQL_HOST=localhost\"\r\nset \"MYSQL_PORT=3306\"\r\nset \"MYSQL_USER=root\"\r\n"+
             "set /p \"MYSQL_HOST=Host [localhost]: \"\r\nset /p \"MYSQL_PORT=Porta [3306]: \"\r\nset /p \"MYSQL_USER=Usuario [root]: \"\r\n"+
             "echo A senha sera solicitada pelo cliente MySQL.\r\n"+
             "call \"!MYSQL_CLIENT!\" --default-character-set=utf8mb4 --host=\"!MYSQL_HOST!\" --port=\"!MYSQL_PORT!\" --user=\"!MYSQL_USER!\" --password < \"sql\\01_criar_banco.sql\"\r\n"+
-            "if errorlevel 1 (echo [ERRO] Nao foi possivel executar o SQL. Confira a conexao, permissoes e mensagens acima. & pause & exit /b 1)\r\n"+
-            "echo SQL executado. Estruturas que ja existiam nao foram validadas.\r\npause\r\nexit /b 0\r\n");
+            "if errorlevel 1 (\r\n  echo [ERRO] Nao foi possivel executar o SQL. Confira a conexao, permissoes e mensagens acima.\r\n  if \"!PAUSAR!\"==\"1\" pause\r\n  exit /b 1\r\n)\r\n"+
+            "echo SQL executado. Estruturas que ja existiam nao foram validadas.\r\nif \"!PAUSAR!\"==\"1\" pause\r\nexit /b 0\r\n");
         files.put("nbproject/project.properties","application.title="+spec.name+"\napplication.vendor=SwingForge\n"+
             "src.dir=src\nbuild.dir=build\ndist.dir=dist\nmain.class="+spec.pkg+".Main\n"+
             "javac.source=8\njavac.target=8\nsource.encoding=UTF-8\n");
@@ -292,6 +293,9 @@ public final class Generator {
         String mainSource="src/"+spec.pkg.replace('.', '/')+"/Main.java";
         files.put("run.bat", "@echo off\r\nsetlocal EnableExtensions\r\ncd /d \"%~dp0\"\r\n"+
             "if not exist \"lib\\mysql-connector-j-8.1.0.jar\" (echo [ERRO] Driver MySQL ausente em lib\\. & pause & exit /b 1)\r\n"+
+            "if not exist \"criar_banco.bat\" (echo [ERRO] criar_banco.bat ausente. & pause & exit /b 1)\r\n"+
+            "call \"criar_banco.bat\" --automatico\r\n"+
+            "if errorlevel 1 (echo [ERRO] Preparacao do banco falhou. O sistema nao sera iniciado. & pause & exit /b 1)\r\n"+
             "if exist \"tools\\ant\\bin\\ant.bat\" (call \"tools\\ant\\bin\\ant.bat\" run & goto :end)\r\n"+
             "where ant >nul 2>&1\r\nif not errorlevel 1 (call ant run & goto :end)\r\n"+
             "where javac >nul 2>&1\r\nif errorlevel 1 (echo [ERRO] JDK/javac nao encontrado. Instale um JDK offline. & pause & exit /b 1)\r\n"+
@@ -302,6 +306,16 @@ public final class Generator {
             ":end\r\nif errorlevel 1 pause\r\n");
         files.put("run.sh", "#!/bin/sh\nset -eu\ncd \"$(dirname \"$0\")\"\n"+
             "if [ ! -f lib/mysql-connector-j-8.1.0.jar ]; then echo '[ERRO] Driver MySQL ausente em lib/' >&2; exit 1; fi\n"+
+            "if ! command -v mysql >/dev/null 2>&1; then echo '[ERRO] Cliente mysql nao encontrado.' >&2; exit 1; fi\n"+
+            "if [ ! -f sql/01_criar_banco.sql ]; then echo '[ERRO] Script SQL nao encontrado.' >&2; exit 1; fi\n"+
+            "echo 'Preparando banco: "+spec.database+"'\n"+
+            "printf 'Host [localhost]: '; read -r mysql_host; mysql_host=${mysql_host:-localhost}\n"+
+            "printf 'Porta [3306]: '; read -r mysql_port; mysql_port=${mysql_port:-3306}\n"+
+            "printf 'Usuario [root]: '; read -r mysql_user; mysql_user=${mysql_user:-root}\n"+
+            "echo 'A senha sera solicitada pelo cliente MySQL.'\n"+
+            "if ! mysql --default-character-set=utf8mb4 --host=\"$mysql_host\" --port=\"$mysql_port\" --user=\"$mysql_user\" --password < sql/01_criar_banco.sql; then\n"+
+            "  echo '[ERRO] Preparacao do banco falhou. O sistema nao sera iniciado.' >&2; exit 1\nfi\n"+
+            "echo 'SQL executado. Estruturas existentes nao foram validadas.'\n"+
             "if [ -x tools/ant/bin/ant ]; then exec tools/ant/bin/ant run; fi\n"+
             "if command -v ant >/dev/null 2>&1; then exec ant run; fi\n"+
             "if ! command -v javac >/dev/null 2>&1; then echo '[ERRO] JDK/javac ausente.' >&2; exit 1; fi\n"+
