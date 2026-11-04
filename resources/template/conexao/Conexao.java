@@ -16,6 +16,12 @@ public final class Conexao {
         host=h;port=p;banco=b;user=u;password=pass;
     }
     public static Connection abrir() throws SQLException {
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+        } catch (ClassNotFoundException ex) {
+            throw new SQLException("Driver MySQL ausente. Confira lib/mysql-connector-j-8.1.0.jar e " +
+                    "recompile o projeto. O JAR em dist/ depende da pasta lib/.", ex);
+        }
         String url="jdbc:mysql://"+host+":"+port+"/"+banco+
                 "?characterEncoding=UTF-8&connectionTimeZone=SERVER&connectTimeout=4000";
         return DriverManager.getConnection(url,user,password);
