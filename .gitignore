@@ -13,3 +13,6 @@ sandbox/
 
 # Connector/J 8.1.0 do professor acompanha o SwingForge para uso offline
 !tools/jdbc/mysql-connector-j-8.1.0.jar
+
+# Projetos gerados localmente
+output/

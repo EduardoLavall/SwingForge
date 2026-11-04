@@ -184,6 +184,21 @@ public final class Generator {
         files.put(src+"telas/TelaPrincipal.java",interpolar(loadTemplate("telas/TelaPrincipal.java"),spec)
             .replace("__TABS__",tabs.toString()));
         files.put("sql/01_criar_banco.sql",sql(spec));
+        files.put("criar_banco.bat", "@echo off\r\nsetlocal EnableExtensions EnableDelayedExpansion\r\n"+
+            "cd /d \"%~dp0\"\r\n"+
+            "if not exist \"sql\\01_criar_banco.sql\" (echo [ERRO] Script SQL nao encontrado. & pause & exit /b 1)\r\n"+
+            "set \"MYSQL_CLIENT=\"\r\n"+
+            "where mysql >nul 2>&1\r\nif not errorlevel 1 set \"MYSQL_CLIENT=mysql\"\r\n"+
+            "if not defined MYSQL_CLIENT for /d %%D in (\"%ProgramFiles%\\MySQL\\MySQL Server *\") do if exist \"%%~D\\bin\\mysql.exe\" set \"MYSQL_CLIENT=%%~D\\bin\\mysql.exe\"\r\n"+
+            "if not defined MYSQL_CLIENT (echo [ERRO] Cliente mysql.exe nao encontrado. Instale o cliente MySQL ou adicione-o ao PATH. & pause & exit /b 1)\r\n"+
+            "echo Banco a preparar: "+spec.database+"\r\n"+
+            "echo Informe os dados do servidor MySQL. Deixe em branco para usar os valores padrao.\r\n"+
+            "set \"MYSQL_HOST=localhost\"\r\nset \"MYSQL_PORT=3306\"\r\nset \"MYSQL_USER=root\"\r\n"+
+            "set /p \"MYSQL_HOST=Host [localhost]: \"\r\nset /p \"MYSQL_PORT=Porta [3306]: \"\r\nset /p \"MYSQL_USER=Usuario [root]: \"\r\n"+
+            "echo A senha sera solicitada pelo cliente MySQL.\r\n"+
+            "call \"!MYSQL_CLIENT!\" --default-character-set=utf8mb4 --host=\"!MYSQL_HOST!\" --port=\"!MYSQL_PORT!\" --user=\"!MYSQL_USER!\" --password < \"sql\\01_criar_banco.sql\"\r\n"+
+            "if errorlevel 1 (echo [ERRO] Nao foi possivel executar o SQL. Confira a conexao, permissoes e mensagens acima. & pause & exit /b 1)\r\n"+
+            "echo SQL executado. Estruturas que ja existiam nao foram validadas.\r\npause\r\nexit /b 0\r\n");
         files.put("nbproject/project.properties","application.title="+spec.name+"\napplication.vendor=SwingForge\n"+
             "src.dir=src\nbuild.dir=build\ndist.dir=dist\nmain.class="+spec.pkg+".Main\n"+
             "javac.source=8\njavac.target=8\nsource.encoding=UTF-8\n");

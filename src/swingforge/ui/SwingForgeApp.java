@@ -39,6 +39,7 @@ public final class SwingForgeApp extends JFrame {
     private final JTextArea log=new JTextArea(6,80);
     private final JPanel advancedPanel=new JPanel(new GridLayout(3,2,12,8));
     private boolean advancedShown=false, busy=false;
+    private boolean atualizandoProjeto=false, bancoAutomatico=true;
     private final JButton gerar=Light.button("Gerar pasta do projeto",true);
     private final JButton compilar=Light.button("Compilar e testar",false);
     private final JButton executar=Light.button("Executar sistema",false);
@@ -58,7 +59,25 @@ public final class SwingForgeApp extends JFrame {
         gerar.addActionListener(e->generate());compilar.addActionListener(e->compile());executar.addActionListener(e->run());
         prepararBanco.addActionListener(e->prepareDatabase());
         refreshProject();
+        nome.getDocument().addDocumentListener(new DocumentListener(){
+            public void insertUpdate(DocumentEvent e){sugerirBanco();}
+            public void removeUpdate(DocumentEvent e){sugerirBanco();}
+            public void changedUpdate(DocumentEvent e){sugerirBanco();}
+        });
+        banco.getDocument().addDocumentListener(new DocumentListener(){
+            public void insertUpdate(DocumentEvent e){mudouBanco();}
+            public void removeUpdate(DocumentEvent e){mudouBanco();}
+            public void changedUpdate(DocumentEvent e){mudouBanco();}
+        });
     }
+    private static String nomeBanco(String nome){
+        return nome.trim().replaceAll("([a-z0-9])([A-Z])","$1_$2").toLowerCase(java.util.Locale.ROOT);
+    }
+    private void sugerirBanco(){
+        if(atualizandoProjeto || !bancoAutomatico)return;
+        atualizandoProjeto=true;try{banco.setText(nomeBanco(nome.getText()));}finally{atualizandoProjeto=false;}
+    }
+    private void mudouBanco(){if(!atualizandoProjeto)bancoAutomatico=banco.getText().equals(nomeBanco(nome.getText()));}
     private JPanel header(){
         JPanel top=new JPanel(new BorderLayout());top.setBackground(Light.BG);
         JPanel brand=new JPanel(new GridLayout(2,1,0,4));brand.setBackground(Light.BG);
@@ -92,7 +111,7 @@ public final class SwingForgeApp extends JFrame {
         toggle.setHorizontalAlignment(SwingConstants.LEFT);
         config.add(toggle,BorderLayout.CENTER);
         advancedPanel.setBackground(Light.PANEL);
-        advancedPanel.add(Light.label("Pacote Java",12,true));advancedPanel.add(Light.label("Banco MySQL",12,true));
+        advancedPanel.add(Light.label("Pacote Java",12,true));advancedPanel.add(Light.label("Banco MySQL (personalizavel)",12,true));
         advancedPanel.add(pacote);advancedPanel.add(banco);
         JButton importarJDBC=Light.button("Importar Connector/J 8.1.0",false);
         advancedPanel.add(Light.label("Driver JDBC (offline)",12,true));
@@ -150,7 +169,10 @@ public final class SwingForgeApp extends JFrame {
     private void flushEditors(){if(tabela.isEditing())tabela.getCellEditor().stopCellEditing();
         spec.name=nome.getText().trim();spec.pkg=pacote.getText().trim();spec.database=banco.getText().trim();}
     private void refreshProject(){
-        nome.setText(spec.name);pacote.setText(spec.pkg);banco.setText(spec.database);
+        atualizandoProjeto=true;
+        try{nome.setText(spec.name);pacote.setText(spec.pkg);banco.setText(spec.database);}
+        finally{atualizandoProjeto=false;}
+        bancoAutomatico=spec.database.equals(nomeBanco(spec.name));
         entidades.clear();for(Spec.Entity e:spec.entities)entidades.addElement(e);
         if(!spec.entities.isEmpty())lista.setSelectedIndex(0);
         campos.fireTableDataChanged();
@@ -205,10 +227,9 @@ public final class SwingForgeApp extends JFrame {
         Path folder=ch.getSelectedFile().toPath();try{Spec other=ProjectStore.read(folder.resolve("swingforge.json"));
             root=folder;spec=other;refreshProject();message("Projeto reaberto: "+folder);
         }catch(Exception ex){error("Nao foi possivel abrir. A v1 edita projetos com swingforge.json. Importador de projetos legados: etapa 2.",ex);}}
-    private Path chooseRoot(){if(root!=null)return root;
-        JFileChooser ch=chooser();ch.setDialogTitle("Pasta que recebera "+spec.name);
-        if(ch.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return null;
-        return ch.getSelectedFile().toPath().resolve(spec.name);
+    private Path chooseRoot(){
+        if(root!=null)return root;
+        return Paths.get(System.getProperty("user.dir"),"output",spec.name).toAbsolutePath().normalize();
     }
     private void importDriver(){
         JFileChooser ch=new JFileChooser();
@@ -225,12 +246,17 @@ public final class SwingForgeApp extends JFrame {
         }catch(Exception ex){error("Nao foi possivel importar o Connector/J",ex);}
     }
     private void saveModel(){try{flushEditors();Validator.validate(spec);Path dest=chooseRoot();if(dest==null)return;
+        if(root==null && Files.exists(dest.resolve("swingforge.json"))) {
+            int answer=JOptionPane.showConfirmDialog(this,"Ja existe um modelo em "+dest+". Substituir o modelo?",
+                "Confirmar salvamento",JOptionPane.YES_NO_OPTION);
+            if(answer!=JOptionPane.YES_OPTION)return;
+        }
         Files.createDirectories(dest);ProjectStore.write(dest.resolve("swingforge.json"),spec);root=dest;
         message("Modelo salvo: "+dest.resolve("swingforge.json"));
     }catch(Exception ex){error("Erro ao salvar",ex);}}
     private boolean generate(){try{flushEditors();Validator.validate(spec);Path dest=chooseRoot();if(dest==null)return false;
-        if(root!=null && Files.exists(dest.resolve("src"))){int conf=JOptionPane.showConfirmDialog(this,
-            "Regenerar codigo pode sobrescrever mudancas manuais. Backups serao salvos em .swingforge/backups. Continuar?",
+        if(Files.isDirectory(dest) && (root==null || Files.exists(dest.resolve("src")))){int conf=JOptionPane.showConfirmDialog(this,
+            "A pasta ja existe: "+dest+"\nGerar codigo pode sobrescrever arquivos. Backups serao salvos em .swingforge/backups. Continuar?",
             "Confirmar geracao",JOptionPane.YES_NO_OPTION);if(conf!=JOptionPane.YES_OPTION)return false;}
         int count=Generator.generate(spec,dest);root=dest;message("Projeto gerado em "+dest+" ("+count+" arquivos).");
         if(MysqlDriver.find()==null)message("ATENCAO: Connector/J nao encontrado. Abra Opcoes avancadas > Importar Connector/J 8.1.0.");
