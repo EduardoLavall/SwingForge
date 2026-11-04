@@ -73,7 +73,8 @@ public class PainelCrud extends JPanel {
     }
     public void carregar(){
         try{
-            carregarOpcoes();registros=dao.listar(busca.getText());modelo.setRowCount(0);
+            List<Registro> atualizados=dao.listar(busca.getText());
+            limpar();carregarOpcoes();registros=atualizados;modelo.setRowCount(0);
             for(Registro r:registros){Object[] row=new Object[r.exibicao.length+1];row[0]=r.id;
                 System.arraycopy(r.exibicao,0,row,1,r.exibicao.length);modelo.addRow(row);}
         }catch(Exception ex){mostrarErro("Nao foi possivel consultar o banco",ex);}
@@ -82,7 +83,7 @@ public class PainelCrud extends JPanel {
         for(int i=0;i<inputs.length;i++)if(inputs[i] instanceof JComboBox && "Relacao".equals(dao.tipos[i])){
             @SuppressWarnings("unchecked") JComboBox<Opcao> cb=(JComboBox<Opcao>)inputs[i];
             Integer previous=cb.getSelectedItem() instanceof Opcao?((Opcao)cb.getSelectedItem()).id:null;
-            cb.removeAllItems();if(!dao.obrigatorios[i])cb.addItem(new Opcao(0,"(Nao selecionado)"));
+            cb.removeAllItems();cb.addItem(new Opcao(0,dao.obrigatorios[i]?"Selecione uma opcao":"(Nao selecionado)"));
             for(Opcao op:dao.opcoes(dao.tabelasRelacionadas[i],dao.rotulosRelacionados[i]))cb.addItem(op);
             if(previous!=null)for(int x=0;x<cb.getItemCount();x++)if(cb.getItemAt(x).id==previous){cb.setSelectedIndex(x);break;}
         }
@@ -127,10 +128,11 @@ public class PainelCrud extends JPanel {
                 else if("0".equals(str))str="false";
             }
             if(c instanceof RadioOptions)((RadioOptions)c).select(str,dao.tipos[i]);
-            else if(c instanceof JCheckBox)((JCheckBox)c).setSelected(Boolean.TRUE.equals(value)||"1".equals(str));
+            else if(c instanceof JCheckBox)((JCheckBox)c).setSelected(Boolean.TRUE.equals(value)||"1".equals(str)||"true".equalsIgnoreCase(str));
             else if(c instanceof JComboBox){
                 JComboBox<?> cb=(JComboBox<?>)c;
                 if("Relacao".equals(dao.tipos[i])){
+                    if(cb.getItemCount()>0)cb.setSelectedIndex(0);
                     for(int j=0;j<cb.getItemCount();j++)
                         if(cb.getItemAt(j) instanceof Opcao &&
                            str.equals(String.valueOf(((Opcao)cb.getItemAt(j)).id))){cb.setSelectedIndex(j);break;}

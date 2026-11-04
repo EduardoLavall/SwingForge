@@ -17,25 +17,30 @@ public class CrudDAO {
         this.tabela=tabela;this.campos=campos;this.tipos=tipos;this.tabelasRelacionadas=refs;
         this.rotulosRelacionados=rotulos;this.obrigatorios=obrigatorios;
     }
+    private static String ident(String name) {
+        if(name==null || !name.matches("[A-Za-z][A-Za-z0-9_]*"))
+            throw new IllegalArgumentException("Identificador invalido.");
+        return "`"+name+"`";
+    }
     public List<Registro> listar(String busca) throws SQLException {
         List<Registro> out=new ArrayList<Registro>();
         StringBuilder sql=new StringBuilder("SELECT t.id");
         StringBuilder joins=new StringBuilder();StringBuilder filtros=new StringBuilder();
         for(int i=0;i<campos.length;i++){
-            sql.append(",t.").append(campos[i]);
+            sql.append(",t.").append(ident(campos[i]));
             if("Relacao".equals(tipos[i])){
-                sql.append(",r").append(i).append('.').append(rotulosRelacionados[i]).append(" AS __rotulo_").append(i);
-                joins.append(" LEFT JOIN ").append(tabelasRelacionadas[i]).append(" r").append(i)
-                     .append(" ON r").append(i).append(".id=t.").append(campos[i]);
+                sql.append(",r").append(i).append('.').append(ident(rotulosRelacionados[i])).append(" AS __rotulo_").append(i);
+                joins.append(" LEFT JOIN ").append(ident(tabelasRelacionadas[i])).append(" r").append(i)
+                     .append(" ON r").append(i).append(".id=t.").append(ident(campos[i]));
                 if(filtros.length()>0)filtros.append(" OR ");
-                filtros.append("LOWER(COALESCE(r").append(i).append('.').append(rotulosRelacionados[i])
+                filtros.append("LOWER(COALESCE(r").append(i).append('.').append(ident(rotulosRelacionados[i]))
                     .append(",'')) LIKE ?");
             } else if("Texto".equals(tipos[i])){
                 if(filtros.length()>0)filtros.append(" OR ");
-                filtros.append("LOWER(t.").append(campos[i]).append(") LIKE ?");
+                filtros.append("LOWER(t.").append(ident(campos[i])).append(") LIKE ?");
             }
         }
-        sql.append(" FROM ").append(tabela).append(" t").append(joins);
+        sql.append(" FROM ").append(ident(tabela)).append(" t").append(joins);
         boolean search=busca!=null&&!busca.trim().isEmpty()&&filtros.length()>0;
         if(search)sql.append(" WHERE ").append(filtros);
         sql.append(" ORDER BY t.id DESC");
@@ -55,10 +60,9 @@ public class CrudDAO {
         return out;
     }
     public List<Opcao> opcoes(String tabela,String rotulo) throws SQLException {
-        if(!tabela.matches("[a-z][a-z0-9_]*")||!rotulo.matches("[a-z][a-z0-9_]*"))
-            throw new IllegalArgumentException("Identificador invalido.");
+
         List<Opcao> result=new ArrayList<Opcao>();
-        String q="SELECT id,"+rotulo+" FROM "+tabela+" ORDER BY "+rotulo;
+        String q="SELECT id,"+ident(rotulo)+" FROM "+ident(tabela)+" ORDER BY "+ident(rotulo);
         try(Connection cn=Conexao.abrir();PreparedStatement ps=cn.prepareStatement(q);ResultSet rs=ps.executeQuery()){
             while(rs.next())result.add(new Opcao(rs.getInt(1),rs.getString(2)));
         }
@@ -68,10 +72,10 @@ public class CrudDAO {
         if(values.length!=campos.length)throw new IllegalArgumentException("Quantidade de campos invalida.");
         StringBuilder columns=new StringBuilder(),placeholders=new StringBuilder(),updates=new StringBuilder();
         for(String name:campos){if(columns.length()>0){columns.append(',');placeholders.append(',');updates.append(',');}
-            columns.append(name);placeholders.append('?');updates.append(name).append("=?");}
+            columns.append(ident(name));placeholders.append('?');updates.append(ident(name)).append("=?");}
         boolean editing=id!=null;
-        String sql=editing?"UPDATE "+tabela+" SET "+updates+" WHERE id=?":
-            "INSERT INTO "+tabela+" ("+columns+") VALUES ("+placeholders+")";
+        String sql=editing?"UPDATE "+ident(tabela)+" SET "+updates+" WHERE id=?":
+            "INSERT INTO "+ident(tabela)+" ("+columns+") VALUES ("+placeholders+")";
         try(Connection cn=Conexao.abrir();PreparedStatement ps=cn.prepareStatement(sql)){
             for(int i=0;i<values.length;i++)bind(ps,i+1,values[i],tipos[i],obrigatorios[i]);
             if(editing)ps.setInt(values.length+1,id.intValue());
@@ -81,7 +85,7 @@ public class CrudDAO {
     private void bind(PreparedStatement ps,int pos,Object input,String type,boolean required)throws SQLException{
         String value=input==null?"":input.toString().trim();
         if(value.isEmpty()){
-            if(required)throw new IllegalArgumentException("Campo obrigatorio nao informado.");
+            if(required)throw new IllegalArgumentException("Campo obrigatorio nao informado: "+campos[pos-1]);
             ps.setNull(pos,"Relacao".equals(type)||"Inteiro".equals(type)?Types.INTEGER:
                 "Decimal".equals(type)?Types.DECIMAL:"Booleano".equals(type)?Types.BOOLEAN:
                 "Data".equals(type)?Types.DATE:Types.VARCHAR);return;
@@ -103,7 +107,7 @@ public class CrudDAO {
         }catch(RuntimeException ex){throw new IllegalArgumentException("Valor invalido em "+campos[pos-1]+": "+value);}
     }
     public void excluir(int id)throws SQLException{
-        try(Connection cn=Conexao.abrir();PreparedStatement ps=cn.prepareStatement("DELETE FROM "+tabela+" WHERE id=?")){
+        try(Connection cn=Conexao.abrir();PreparedStatement ps=cn.prepareStatement("DELETE FROM "+ident(tabela)+" WHERE id=?")){
             ps.setInt(1,id);ps.executeUpdate();}
     }
 }

@@ -63,7 +63,7 @@ public final class SwingForgeApp extends JFrame {
         JPanel top=new JPanel(new BorderLayout());top.setBackground(Light.BG);
         JPanel brand=new JPanel(new GridLayout(2,1,0,4));brand.setBackground(Light.BG);
         JLabel name=Light.label("▦  SwingForge",27,false);name.setFont(new Font("Dialog",Font.BOLD,27));brand.add(name);
-        brand.add(Light.label("Projetos Java Swing + MySQL + NetBeans  •  100% offline",12,true));top.add(brand,BorderLayout.WEST);
+        brand.add(Light.label("1. Escolha o modelo   →   2. Personalize os campos   →   3. Gere e teste",12,true));top.add(brand,BorderLayout.WEST);
         JLabel indicator=Light.label("●  OFFLINE",12,true);indicator.setForeground(Light.SUCCESS);top.add(indicator,BorderLayout.EAST);
         return top;
     }
@@ -115,10 +115,13 @@ public final class SwingForgeApp extends JFrame {
         TableColumn typeColumn=tabela.getColumnModel().getColumn(1);typeColumn.setCellEditor(new DefaultCellEditor(typeBox));
         JScrollPane pane=new JScrollPane(tabela);pane.getViewport().setBackground(Light.PANEL);pane.setBorder(BorderFactory.createLineBorder(Light.BORDER));
         fields.add(pane,BorderLayout.CENTER);
-        JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEFT,8,0));actions.setBackground(Light.PANEL);
+        JPanel actions=new JPanel();actions.setLayout(new BoxLayout(actions,BoxLayout.Y_AXIS));actions.setBackground(Light.PANEL);
+        JPanel fieldActions=new JPanel(new FlowLayout(FlowLayout.LEFT,8,0));fieldActions.setBackground(Light.PANEL);
+        JPanel formActions=new JPanel(new FlowLayout(FlowLayout.LEFT,8,4));formActions.setBackground(Light.PANEL);
         JButton add=Light.button("+  Campo",true),del=Light.button("Remover campo",false),relation=Light.button("Editar relação",false);
-        JButton designer=Light.button("GUI Editor / Previa",true);
-        actions.add(add);actions.add(del);actions.add(relation);actions.add(designer);fields.add(actions,BorderLayout.SOUTH);
+        JButton designer=Light.button("Personalizar formulario / Previa",true);
+        fieldActions.add(add);fieldActions.add(del);fieldActions.add(relation);formActions.add(designer);
+        actions.add(fieldActions);actions.add(formActions);fields.add(actions,BorderLayout.SOUTH);
         add.addActionListener(e->newField());del.addActionListener(e->removeField());relation.addActionListener(e->editRelation());
         designer.addActionListener(e->editForm());
         panel.add(fields,BorderLayout.CENTER);
@@ -126,16 +129,22 @@ public final class SwingForgeApp extends JFrame {
     }
     private JPanel footer(){
         JPanel bottom=new JPanel(new BorderLayout(0,9));bottom.setBackground(Light.BG);
-        JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEFT,8,0));actions.setBackground(Light.BG);
-        JButton novo=Light.button("Novo",false),abrir=Light.button("Abrir projeto",false),salvar=Light.button("Salvar modelo",false);
-        actions.add(novo);actions.add(abrir);actions.add(salvar);actions.add(gerar);actions.add(compilar);
-        actions.add(prepararBanco);actions.add(executar);
+        JPanel actionRows=new JPanel();actionRows.setLayout(new BoxLayout(actionRows,BoxLayout.Y_AXIS));actionRows.setBackground(Light.BG);
+        JPanel primary=new JPanel(new FlowLayout(FlowLayout.LEFT,8,0));primary.setBackground(Light.BG);
+        JPanel secondary=new JPanel(new FlowLayout(FlowLayout.LEFT,8,4));secondary.setBackground(Light.BG);
+        JButton novo=Light.button("Novo modelo",false),abrir=Light.button("Abrir projeto",false),salvar=Light.button("Salvar modelo",false);
+        primary.add(novo);primary.add(abrir);primary.add(salvar);primary.add(gerar);
+        secondary.add(compilar);secondary.add(prepararBanco);secondary.add(executar);
+        JButton detalhes=Light.button("Mostrar detalhes ▾",false);secondary.add(detalhes);
+        actionRows.add(primary);actionRows.add(secondary);
         novo.addActionListener(e->newProject());abrir.addActionListener(e->openProject());salvar.addActionListener(e->saveModel());
-        bottom.add(actions,BorderLayout.NORTH);
+        bottom.add(actionRows,BorderLayout.NORTH);
         log.setEditable(false);log.setLineWrap(true);log.setWrapStyleWord(true);log.setForeground(Light.MUTED);log.setBackground(Light.PANEL);
         log.setFont(new Font(Font.MONOSPACED,Font.PLAIN,11));log.setBorder(new EmptyBorder(8,12,8,12));
         JScrollPane p=new JScrollPane(log);p.setBorder(BorderFactory.createLineBorder(Light.BORDER));
-        p.setPreferredSize(new Dimension(500,112));bottom.add(p,BorderLayout.CENTER);
+        p.setPreferredSize(new Dimension(500,105));p.setVisible(false);bottom.add(p,BorderLayout.CENTER);
+        detalhes.addActionListener(e->{boolean visible=!p.isVisible();p.setVisible(visible);
+            detalhes.setText(visible?"Ocultar detalhes ▴":"Mostrar detalhes ▾");bottom.revalidate();});
         bottom.add(status,BorderLayout.SOUTH);return bottom;
     }
     private void flushEditors(){if(tabela.isEditing())tabela.getCellEditor().stopCellEditing();
