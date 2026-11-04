@@ -11,6 +11,25 @@ import java.util.Map;
 
 public final class ProjectStore {
     private ProjectStore() { }
+    /** Metadados fora da pasta entregue, identificados pelo caminho absoluto do projeto. */
+    public static Path metadataDir(Path project) {
+        try {
+            String path=project.toAbsolutePath().normalize().toString();
+            if(System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("win"))
+                path=path.toLowerCase(java.util.Locale.ROOT);
+            byte[] digest=java.security.MessageDigest.getInstance("SHA-256").digest(path.getBytes(StandardCharsets.UTF_8));
+            StringBuilder id=new StringBuilder();for(byte value:digest)id.append(String.format("%02x",value & 0xff));
+            return java.nio.file.Paths.get(System.getProperty("user.dir"),".swingforge-projects",id.toString());
+        } catch(java.security.NoSuchAlgorithmException ex) {throw new IllegalStateException(ex);}
+    }
+    public static Path modelPath(Path project){return metadataDir(project).resolve("swingforge.json");}
+    public static Path generatedModelPath(Path project){return metadataDir(project).resolve("ultimo-gerado.json");}
+    public static Path readableModel(Path project){
+        Path external=modelPath(project);return Files.isRegularFile(external)?external:project.resolve("swingforge.json");
+    }
+    public static void writeProject(Path project,Spec spec)throws IOException{
+        Path path=modelPath(project);Files.createDirectories(path.getParent());write(path,spec);
+    }
     public static String serialize(Spec s) {
         Map<String,Object> root = new LinkedHashMap<String,Object>();
         root.put("schema", 2); root.put("generator", "SwingForge");

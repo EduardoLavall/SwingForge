@@ -224,9 +224,9 @@ public final class SwingForgeApp extends JFrame {
     private JFileChooser chooser(){JFileChooser f=new JFileChooser();f.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         f.setDialogTitle("Selecione uma pasta local");return f;}
     private void openProject(){JFileChooser ch=chooser();if(ch.showOpenDialog(this)!=JFileChooser.APPROVE_OPTION)return;
-        Path folder=ch.getSelectedFile().toPath();try{Spec other=ProjectStore.read(folder.resolve("swingforge.json"));
+        Path folder=ch.getSelectedFile().toPath();try{Spec other=ProjectStore.read(ProjectStore.readableModel(folder));
             root=folder;spec=other;refreshProject();message("Projeto reaberto: "+folder);
-        }catch(Exception ex){error("Nao foi possivel abrir. A v1 edita projetos com swingforge.json. Importador de projetos legados: etapa 2.",ex);}}
+        }catch(Exception ex){error("Nao foi possivel abrir o modelo deste projeto no SwingForge.",ex);}}
     private Path chooseRoot(){
         if(root!=null)return root;
         return Paths.get(System.getProperty("user.dir"),"output",spec.name).toAbsolutePath().normalize();
@@ -240,23 +240,23 @@ public final class SwingForgeApp extends JFrame {
             Path copied=MysqlDriver.importFile(ch.getSelectedFile().toPath());
             message("Connector/J 8.1.0 importado localmente: "+copied);
             if(root!=null && Files.isDirectory(root.resolve("lib"))){
-                MysqlDriver.copyTo(root,root.resolve(".swingforge/backups/import-driver"));
+                MysqlDriver.copyTo(root,ProjectStore.metadataDir(root).resolve("backups/import-driver"));
                 message("Driver atualizado no projeto: "+root.resolve("lib").resolve(MysqlDriver.NAME));
             }
         }catch(Exception ex){error("Nao foi possivel importar o Connector/J",ex);}
     }
     private void saveModel(){try{flushEditors();Validator.validate(spec);Path dest=chooseRoot();if(dest==null)return;
-        if(root==null && Files.exists(dest.resolve("swingforge.json"))) {
+        if(root==null && Files.exists(ProjectStore.readableModel(dest))) {
             int answer=JOptionPane.showConfirmDialog(this,"Ja existe um modelo em "+dest+". Substituir o modelo?",
                 "Confirmar salvamento",JOptionPane.YES_NO_OPTION);
             if(answer!=JOptionPane.YES_OPTION)return;
         }
-        Files.createDirectories(dest);ProjectStore.write(dest.resolve("swingforge.json"),spec);root=dest;
-        message("Modelo salvo: "+dest.resolve("swingforge.json"));
+        Files.createDirectories(dest);ProjectStore.writeProject(dest,spec);root=dest;
+        message("Modelo salvo no SwingForge para o projeto: "+dest);
     }catch(Exception ex){error("Erro ao salvar",ex);}}
     private boolean generate(){try{flushEditors();Validator.validate(spec);Path dest=chooseRoot();if(dest==null)return false;
         if(Files.isDirectory(dest) && (root==null || Files.exists(dest.resolve("src")))){int conf=JOptionPane.showConfirmDialog(this,
-            "A pasta ja existe: "+dest+"\nGerar codigo pode sobrescrever arquivos. Backups serao salvos em .swingforge/backups. Continuar?",
+            "A pasta ja existe: "+dest+"\nGerar codigo pode sobrescrever arquivos. Backups serao guardados fora da pasta do projeto. Continuar?",
             "Confirmar geracao",JOptionPane.YES_NO_OPTION);if(conf!=JOptionPane.YES_OPTION)return false;}
         int count=Generator.generate(spec,dest);root=dest;message("Projeto gerado em "+dest+" ("+count+" arquivos).");
         if(MysqlDriver.find()==null)message("ATENCAO: Connector/J nao encontrado. Abra Opcoes avancadas > Importar Connector/J 8.1.0.");
@@ -274,7 +274,7 @@ public final class SwingForgeApp extends JFrame {
                     "Projeto nao gerado",JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
-            Path model=root.resolve("swingforge.json");
+            Path model=ProjectStore.generatedModelPath(root);
             if(!Files.isRegularFile(model) || !ProjectStore.serialize(spec).equals(
                     new String(Files.readAllBytes(model),StandardCharsets.UTF_8))){
                 int result=JOptionPane.showConfirmDialog(this,
@@ -286,7 +286,7 @@ public final class SwingForgeApp extends JFrame {
         Path driver=root.resolve("lib").resolve(MysqlDriver.NAME);
         if(!Files.isRegularFile(driver)){
             try{
-                if(!MysqlDriver.copyTo(root,root.resolve(".swingforge/backups/driver-setup"))){
+                if(!MysqlDriver.copyTo(root,ProjectStore.metadataDir(root).resolve("backups/driver-setup"))){
                     JOptionPane.showMessageDialog(this,
                         "Connector/J 8.1.0 ausente. Verifique tools/jdbc no SwingForge.",
                         "Dependencia ausente",JOptionPane.ERROR_MESSAGE);
@@ -377,7 +377,7 @@ public final class SwingForgeApp extends JFrame {
         else {
             try {
                 flushEditors();Validator.validate(spec);
-                Path config=root.resolve("swingforge.json");
+                Path config=ProjectStore.generatedModelPath(root);
                 boolean changes=!Files.exists(config)||!ProjectStore.serialize(spec).equals(
                     new String(Files.readAllBytes(config),StandardCharsets.UTF_8));
                 if(changes || !Files.exists(root.resolve("build.xml"))) {
@@ -398,7 +398,7 @@ public final class SwingForgeApp extends JFrame {
         Path driver=folder.resolve("lib").resolve(MysqlDriver.NAME);
         if (!Files.isRegularFile(driver)) {
             try {
-                if (!MysqlDriver.copyTo(folder, folder.resolve(".swingforge/backups/auto-driver"))) {
+                if (!MysqlDriver.copyTo(folder, ProjectStore.metadataDir(folder).resolve("backups/auto-driver"))) {
                     message("O projeto nao tem o Connector/J 8.1.0. Importe o ZIP do professor em Opcoes avancadas.");
                     JOptionPane.showMessageDialog(this,
                             "Driver MySQL ausente.\nAbra Opcoes avancadas > Importar Connector/J 8.1.0.",

@@ -447,9 +447,6 @@ public final class Generator {
         files.put("build.xml",buildXml(spec));
         files.put(".gitignore","build/\ndist/\nnbproject/private/\n.swinforge/\n.swingforge/\n"+
            "test/\ntests/\n*.log\n.env\n.env.*\nbanco.properties\n.idea/\n.vscode/\n");
-        files.put("lib/DRIVER_MYSQL.txt","O projeto usa MySQL Connector/J 8.1.0 (arquivo fornecido pelo professor).\n"+
-            "O SwingForge copia o JAR original para esta pasta quando ele estiver disponivel.\n"+
-            "Se lib/mysql-connector-j-8.1.0.jar estiver ausente, importe o ZIP no SwingForge.\n");
         String mainSource="src/"+spec.pkg.replace('.', '/')+"/Main.java";
         files.put("run.bat", "@echo off\r\nsetlocal EnableExtensions\r\ncd /d \"%~dp0\"\r\n"+
             "if not exist \"lib\\mysql-connector-j-8.1.0.jar\" (echo [ERRO] Driver MySQL ausente em lib\\. & pause & exit /b 1)\r\n"+
@@ -469,7 +466,6 @@ public final class Generator {
             "mkdir -p build/classes\n"+
             "javac -encoding UTF-8 -source 8 -target 8 -cp 'lib/*' -sourcepath src -d build/classes '"+mainSource+"'\n"+
             "exec java -cp 'build/classes:lib/*' "+spec.pkg+".Main\n");
-        files.put("swingforge.json",ProjectStore.serialize(spec));
         return files;
     }
     public static int generate(Spec s,Path root)throws IOException{
@@ -477,8 +473,24 @@ public final class Generator {
         root=root.toAbsolutePath().normalize();
         if(!Files.exists(root))Files.createDirectories(root);
         if(!Files.isDirectory(root))throw new IOException("Destino precisa ser uma pasta.");
-        Path backups=root.resolve(".swingforge/backups/"+LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS")));
-        Path previousList=root.resolve(".swingforge/generated-files.txt");
+        Path metadata=ProjectStore.metadataDir(root);
+        Files.createDirectories(metadata);
+        String stamp=LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS"));
+        Path backups=metadata.resolve("backups").resolve(stamp);
+        Path previousList=metadata.resolve("generated-files.txt");
+        Path oldMetadata=root.resolve(".swingforge");
+        if(Files.isDirectory(oldMetadata)){
+            Path migrated=metadata.resolve("legado-"+stamp);
+            Files.move(oldMetadata,migrated);
+            if(!Files.exists(previousList) && Files.isRegularFile(migrated.resolve("generated-files.txt")))
+                Files.copy(migrated.resolve("generated-files.txt"),previousList);
+        }
+        Path oldModel=root.resolve("swingforge.json");
+        if(Files.isRegularFile(oldModel)){
+            ProjectStore.read(oldModel);
+            Files.createDirectories(backups);
+            Files.move(oldModel,backups.resolve("swingforge.json"));
+        }
         if(Files.isRegularFile(previousList)){
             for(String line:Files.readAllLines(previousList,StandardCharsets.UTF_8)){
                 String pathName=line.trim();
@@ -511,18 +523,12 @@ public final class Generator {
         }
         // O JDBC e um binario: copiar o arquivo oficial em vez de gerar um JAR vazio.
         boolean jdbc = MysqlDriver.copyTo(root, backups);
-        Path licenseFile = root.resolve("lib/LICENSE-MySQL-Connector-J.txt");
-        Path driverLocation = MysqlDriver.find();
-        if (jdbc && driverLocation != null) {
-            Path sourceLicense = driverLocation.getParent().resolve("LICENSE-MySQL-Connector-J.txt");
-            if (Files.isRegularFile(sourceLicense))
-                Files.copy(sourceLicense,licenseFile,StandardCopyOption.REPLACE_EXISTING);
-        }
         java.util.List<String> tracked = new java.util.ArrayList<String>(generated.keySet());
         if (jdbc) tracked.add("lib/" + MysqlDriver.NAME);
-        if (Files.isRegularFile(licenseFile)) tracked.add("lib/LICENSE-MySQL-Connector-J.txt");
         Files.createDirectories(previousList.getParent());
         Files.write(previousList,tracked,StandardCharsets.UTF_8);
+        ProjectStore.writeProject(root,s);
+        ProjectStore.write(ProjectStore.generatedModelPath(root),s);
         return count + (jdbc ? 1 : 0);
     }
 }

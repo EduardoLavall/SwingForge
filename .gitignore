@@ -16,3 +16,6 @@ sandbox/
 
 # Projetos gerados localmente
 output/
+
+# Modelos e backups locais do SwingForge
+.swingforge-projects/

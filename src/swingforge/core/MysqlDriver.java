@@ -52,6 +52,8 @@ public final class MysqlDriver {
                 throw new IOException("Selecione o MySQL Connector/J versao 8.1.0.");
             if (file.getEntry("com/mysql/cj/jdbc/Driver.class") == null)
                 throw new IOException("O JAR nao contem o driver JDBC do MySQL.");
+            if (file.getEntry("LICENSE") == null)
+                throw new IOException("O JAR do Connector/J nao contem a licenca. Importe a distribuicao oficial completa.");
         }
     }
 
