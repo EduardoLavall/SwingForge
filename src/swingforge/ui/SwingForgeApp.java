@@ -281,8 +281,14 @@ public final class SwingForgeApp extends JFrame {
                             "build/classes"+java.io.File.pathSeparator+"lib/*",spec.pkg+".Main"));
                 }
                 Files.createDirectories(folder.resolve("dist"));
-                try { return execute(java.util.Arrays.asList(jdkTool("jar"),"cfe",
-                        "dist/"+spec.name+".jar",spec.pkg+".Main","-C","build/classes",".")); }
+                Path manifest = folder.resolve("build/manifest.mf");
+                Files.write(manifest, java.util.Arrays.asList(
+                        "Manifest-Version: 1.0",
+                        "Main-Class: " + spec.pkg + ".Main",
+                        "Class-Path: ../lib/mysql-connector-j-8.1.0.jar",
+                        ""), StandardCharsets.UTF_8);
+                try { return execute(java.util.Arrays.asList(jdkTool("jar"),"cfm",
+                        "dist/"+spec.name+".jar", "build/manifest.mf", "-C","build/classes",".")); }
                 catch(java.io.IOException ex){
                     throw new java.io.IOException("Comando jar do JDK nao encontrado. Instale um JDK completo offline.",ex);
                 }
