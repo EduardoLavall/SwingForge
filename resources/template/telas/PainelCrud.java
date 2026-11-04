@@ -1,4 +1,8 @@
-package __PACKAGE__;
+package __PACKAGE__.telas;
+
+import __PACKAGE__.dao.CrudDAO;
+import __PACKAGE__.dao.Opcao;
+import __PACKAGE__.dao.Registro;
 
 
 import java.awt.*;

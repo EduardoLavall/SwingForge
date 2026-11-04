@@ -48,7 +48,7 @@ public final class Generator {
     private static Spec.Entity find(Spec s,String name){for(Spec.Entity e:s.entities)if(e.name.equals(name))return e;throw new IllegalArgumentException(name);}
     private static String bools(Spec.Entity e){StringBuilder b=new StringBuilder("new boolean[] {");for(Spec.Field f:e.fields){if(b.charAt(b.length()-1)!='{')b.append(", ");b.append(f.required);}return b.append('}').toString();}
     public static String bean(Spec spec, Spec.Entity e) {
-        StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(";\n\n");
+        StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(".beans;\n\n");
         b.append("/** Modelo de dados da entidade ").append(e.name).append(". */\n")
             .append("public class ").append(e.name).append(" {\n")
             .append("    private Integer id;\n");
@@ -86,7 +86,7 @@ public final class Generator {
         return b.append("};\n    }\n}\n").toString();
     }
     public static String dao(Spec spec, Spec.Entity e) {
-        return "package " + spec.pkg + ";\n\n"
+        return "package " + spec.pkg + ".dao;\n\n"
             + "/** CRUD SQL da entidade " + e.name + ". */\n"
             + "public final class " + e.name + "DAO extends CrudDAO {\n"
             + "    public " + e.name + "DAO() {\n"
@@ -130,7 +130,9 @@ public final class Generator {
     }
     public static String tela(Spec spec, Spec.Entity e) {
         FormDesign.normalize(e);
-        StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(";\n\n")
+        StringBuilder b = new StringBuilder("package ").append(spec.pkg).append(".telas;\n\n")
+            .append("import ").append(spec.pkg).append(".dao.").append(e.name).append("DAO;\n")
+            .append("import ").append(spec.pkg).append(".dao.Opcao;\n")
             .append("import javax.swing.*;\n\n")
             .append("/** Cadastro de ").append(e.name).append(" com formulario e tabela. */\n")
             .append("public final class Tela").append(e.name).append(" extends PainelCrud {\n")
@@ -248,18 +250,19 @@ public final class Generator {
         Validator.validate(spec);
         Map<String,String> files=new LinkedHashMap<String,String>();
         String src="src/"+spec.pkg.replace('.','/')+"/";
-        addTemplate(files,spec,"Main.java",src+"Main.java");
+        StringBuilder imports=new StringBuilder();
+        for(Spec.Entity e:spec.entities)imports.append("import ").append(spec.pkg).append(".telas.Tela").append(e.name).append(";\n");
+        files.put(src+"Main.java",interpolar(loadTemplate("Main.java"),spec).replace("__IMPORTS__",imports.toString()));
         for(String name:new String[] {"conexao/Conexao.java","dao/Registro.java","dao/Opcao.java","dao/CrudDAO.java",
-            "telas/PainelCrud.java"})addTemplate(files,spec,name,src+name.substring(name.lastIndexOf('/')+1));
+            "telas/PainelCrud.java","conexao/PrepararBanco.java"})addTemplate(files,spec,name,src+name);
         StringBuilder tabs=new StringBuilder();
         for(Spec.Entity e:spec.entities){
-            files.put(src+e.name+".java",bean(spec,e));
-            files.put(src+e.name+"DAO.java",dao(spec,e));
-            files.put(src+"Tela"+e.name+".java",tela(spec,e));
+            files.put(src+"beans/"+e.name+".java",bean(spec,e));
+            files.put(src+"dao/"+e.name+"DAO.java",dao(spec,e));
+            files.put(src+"telas/Tela"+e.name+".java",tela(spec,e));
             tabs.append("        adicionarSecao(").append(q(e.name)).append(",new Tela").append(e.name).append("());\n");
         }
-        files.put(src+"TelaPrincipal.java",interpolar(loadTemplate("telas/TelaPrincipal.java"),spec)
-            .replace("__TABS__",tabs.toString()));
+        files.put(src+"Main.java",files.get(src+"Main.java").replace("__TABS__",tabs.toString()));
         files.put("sql/01_criar_banco.sql",sql(spec));
         files.put("criar_banco.bat", "@echo off\r\nsetlocal EnableExtensions EnableDelayedExpansion\r\n"+
             "cd /d \"%~dp0\"\r\n"+
@@ -286,16 +289,13 @@ public final class Generator {
             "<source-roots><root id=\"src.dir\"/></source-roots><test-roots/></data></configuration></project>\n");
         files.put("build.xml",buildXml(spec));
         files.put(".gitignore","build/\ndist/\nnbproject/private/\n.swinforge/\n.swingforge/\n"+
-           "test/\ntests/\n*.log\n.env\n.env.*\n.idea/\n.vscode/\n");
+           "test/\ntests/\n*.log\n.env\n.env.*\nbanco.properties\n.idea/\n.vscode/\n");
         files.put("lib/DRIVER_MYSQL.txt","O projeto usa MySQL Connector/J 8.1.0 (arquivo fornecido pelo professor).\n"+
             "O SwingForge copia o JAR original para esta pasta quando ele estiver disponivel.\n"+
             "Se lib/mysql-connector-j-8.1.0.jar estiver ausente, importe o ZIP no SwingForge.\n");
         String mainSource="src/"+spec.pkg.replace('.', '/')+"/Main.java";
         files.put("run.bat", "@echo off\r\nsetlocal EnableExtensions\r\ncd /d \"%~dp0\"\r\n"+
             "if not exist \"lib\\mysql-connector-j-8.1.0.jar\" (echo [ERRO] Driver MySQL ausente em lib\\. & pause & exit /b 1)\r\n"+
-            "if not exist \"criar_banco.bat\" (echo [ERRO] criar_banco.bat ausente. & pause & exit /b 1)\r\n"+
-            "call \"criar_banco.bat\" --automatico\r\n"+
-            "if errorlevel 1 (echo [ERRO] Preparacao do banco falhou. O sistema nao sera iniciado. & pause & exit /b 1)\r\n"+
             "if exist \"tools\\ant\\bin\\ant.bat\" (call \"tools\\ant\\bin\\ant.bat\" run & goto :end)\r\n"+
             "where ant >nul 2>&1\r\nif not errorlevel 1 (call ant run & goto :end)\r\n"+
             "where javac >nul 2>&1\r\nif errorlevel 1 (echo [ERRO] JDK/javac nao encontrado. Instale um JDK offline. & pause & exit /b 1)\r\n"+
@@ -306,16 +306,6 @@ public final class Generator {
             ":end\r\nif errorlevel 1 pause\r\n");
         files.put("run.sh", "#!/bin/sh\nset -eu\ncd \"$(dirname \"$0\")\"\n"+
             "if [ ! -f lib/mysql-connector-j-8.1.0.jar ]; then echo '[ERRO] Driver MySQL ausente em lib/' >&2; exit 1; fi\n"+
-            "if ! command -v mysql >/dev/null 2>&1; then echo '[ERRO] Cliente mysql nao encontrado.' >&2; exit 1; fi\n"+
-            "if [ ! -f sql/01_criar_banco.sql ]; then echo '[ERRO] Script SQL nao encontrado.' >&2; exit 1; fi\n"+
-            "echo 'Preparando banco: "+spec.database+"'\n"+
-            "printf 'Host [localhost]: '; read -r mysql_host; mysql_host=${mysql_host:-localhost}\n"+
-            "printf 'Porta [3306]: '; read -r mysql_port; mysql_port=${mysql_port:-3306}\n"+
-            "printf 'Usuario [root]: '; read -r mysql_user; mysql_user=${mysql_user:-root}\n"+
-            "echo 'A senha sera solicitada pelo cliente MySQL.'\n"+
-            "if ! mysql --default-character-set=utf8mb4 --host=\"$mysql_host\" --port=\"$mysql_port\" --user=\"$mysql_user\" --password < sql/01_criar_banco.sql; then\n"+
-            "  echo '[ERRO] Preparacao do banco falhou. O sistema nao sera iniciado.' >&2; exit 1\nfi\n"+
-            "echo 'SQL executado. Estruturas existentes nao foram validadas.'\n"+
             "if [ -x tools/ant/bin/ant ]; then exec tools/ant/bin/ant run; fi\n"+
             "if command -v ant >/dev/null 2>&1; then exec ant run; fi\n"+
             "if ! command -v javac >/dev/null 2>&1; then echo '[ERRO] JDK/javac ausente.' >&2; exit 1; fi\n"+
@@ -342,6 +332,11 @@ public final class Generator {
                 Files.copy(old,backup,StandardCopyOption.REPLACE_EXISTING);
                 Files.delete(old);
             }
+        }
+        Path configLocal=root.resolve("banco.properties");
+        if(!Files.exists(configLocal)){
+            Files.write(configLocal,("# Configuracao local. Informe a senha do MySQL; nao compartilhe este arquivo.\n"+
+                "host=localhost\nporta=3306\nusuario=root\nsenha=\n").getBytes(StandardCharsets.UTF_8));
         }
         int count=0;
         for(Map.Entry<String,String> entry:generated.entrySet()){

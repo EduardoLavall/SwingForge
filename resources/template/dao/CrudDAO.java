@@ -1,4 +1,6 @@
-package __PACKAGE__;
+package __PACKAGE__.dao;
+
+import __PACKAGE__.conexao.Conexao;
 
 
 import java.math.BigDecimal;
