@@ -227,6 +227,22 @@ public final class SwingForgeApp extends JFrame {
     private void launchCommand(final boolean run){
         if(busy)return;
         final Path folder=root;
+        Path driver=folder.resolve("lib").resolve(MysqlDriver.NAME);
+        if (!Files.isRegularFile(driver)) {
+            try {
+                if (!MysqlDriver.copyTo(folder, folder.resolve(".swingforge/backups/auto-driver"))) {
+                    message("O projeto nao tem o Connector/J 8.1.0. Importe o ZIP do professor em Opcoes avancadas.");
+                    JOptionPane.showMessageDialog(this,
+                            "Driver MySQL ausente.\nAbra Opcoes avancadas > Importar Connector/J 8.1.0.",
+                            "Dependencia ausente", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                message("Connector/J 8.1.0 restaurado automaticamente em lib/.");
+            } catch (Exception ex) {
+                error("Falha ao preparar o driver MySQL", ex);
+                return;
+            }
+        }
         String antPath="ant";
         Path local=folder.resolve(System.getProperty("os.name").toLowerCase().contains("win")?
                 "tools/ant/bin/ant.bat":"tools/ant/bin/ant");
