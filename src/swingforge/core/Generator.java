@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 
 /** Gera pasta Ant/NetBeans offline: src, beans, dao, conexao, telas e SQL. */
 public final class Generator {
@@ -68,10 +69,42 @@ public final class Generator {
                 arrFields(e,0,spec)+",\n            "+arrFields(e,1,spec)+",\n            "+
                 arrFields(e,2,spec)+",\n            "+arrFields(e,3,spec)+",\n            "+bools(e)+");\n    }\n}\n";
     }
+    /** Ordenacao e rotulos independentes dos campos SQL, configurados no GUI Editor. */
+    private static String arrayOf(List<String> values){
+        StringBuilder b=new StringBuilder("new String[]{");
+        for(String x:values){if(b.charAt(b.length()-1)!='{')b.append(',');b.append(q(x));}
+        return b.append('}').toString();
+    }
+    private static String formIndices(Spec.Entity e){
+        FormDesign.normalize(e);StringBuilder b=new StringBuilder("new int[]{");
+        for(Spec.FormField u:e.formFields)if(u.visible){
+            if(b.charAt(b.length()-1)!='{')b.append(',');
+            for(int i=0;i<e.fields.size();i++)if(e.fields.get(i).name.equals(u.field)){b.append(i);break;}
+        }
+        return b.append('}').toString();
+    }
+    private static String formArray(Spec.Entity e,int kind){
+        FormDesign.normalize(e);List<String> values=new java.util.ArrayList<String>();
+        for(Spec.FormField u:e.formFields)if(u.visible)
+            values.add(kind==0?u.label:kind==1?u.widget:u.options);
+        return arrayOf(values);
+    }
+    private static String tableLabels(Spec.Entity e){
+        FormDesign.normalize(e);List<String> values=new java.util.ArrayList<String>();
+        for(Spec.Field f:e.fields){
+            String label=FormDesign.label(f.name);
+            for(Spec.FormField u:e.formFields)if(u.field.equals(f.name)){label=u.label;break;}
+            values.add(label);
+        }
+        return arrayOf(values);
+    }
     public static String tela(Spec spec,Spec.Entity e){
         return "package "+spec.pkg+".telas;\n\nimport "+spec.pkg+".dao."+e.name+"DAO;\n\n"+
-             "/** Formulario de cadastro/consulta de "+e.name+". */\npublic final class Tela"+e.name+" extends PainelCrud {\n"+
-             "    public Tela"+e.name+"(){super("+q(e.name)+",new "+e.name+"DAO(),"+arrFields(e,4,spec)+");}\n}\n";
+            "/** Formulario Swing gerado pelo GUI Builder do SwingForge. */\n"+
+            "public final class Tela"+e.name+" extends PainelCrud {\n"+
+            "    public Tela"+e.name+"(){super("+q(e.formTitle)+",new "+e.name+"DAO(),"+
+               tableLabels(e)+","+formIndices(e)+","+formArray(e,0)+","+
+               formArray(e,1)+","+formArray(e,2)+");}\n}\n";
     }
     public static String sql(Spec spec){
         StringBuilder b=new StringBuilder("-- Gerado offline pelo SwingForge. Execute no MySQL local.\nCREATE DATABASE IF NOT EXISTS `")
@@ -159,7 +192,7 @@ public final class Generator {
             "<configuration><data xmlns=\"http://www.netbeans.org/ns/j2se-project/3\"><name>"+spec.name+"</name>"+
             "<source-roots><root id=\"src.dir\"/></source-roots><test-roots/></data></configuration></project>\n");
         files.put("build.xml",buildXml(spec));
-        files.put(".gitignore","build/\ndist/\nnbproject/private/\nlib/*.jar\n.swinforge/\n.swingforge/\n"+
+        files.put(".gitignore","build/\ndist/\nnbproject/private/\n.swinforge/\n.swingforge/\n"+
            "test/\ntests/\n*.log\n.env\n.env.*\n.idea/\n.vscode/\n");
         files.put("lib/DRIVER_MYSQL.txt","O projeto usa MySQL Connector/J 8.1.0 (arquivo fornecido pelo professor).\n"+
             "O SwingForge copia o JAR original para esta pasta quando ele estiver disponivel.\n"+
@@ -220,8 +253,16 @@ public final class Generator {
         }
         // O JDBC e um binario: copiar o arquivo oficial em vez de gerar um JAR vazio.
         boolean jdbc = MysqlDriver.copyTo(root, backups);
+        Path licenseFile = root.resolve("lib/LICENSE-MySQL-Connector-J.txt");
+        Path driverLocation = MysqlDriver.find();
+        if (jdbc && driverLocation != null) {
+            Path sourceLicense = driverLocation.getParent().resolve("LICENSE-MySQL-Connector-J.txt");
+            if (Files.isRegularFile(sourceLicense))
+                Files.copy(sourceLicense,licenseFile,StandardCopyOption.REPLACE_EXISTING);
+        }
         java.util.List<String> tracked = new java.util.ArrayList<String>(generated.keySet());
         if (jdbc) tracked.add("lib/" + MysqlDriver.NAME);
+        if (Files.isRegularFile(licenseFile)) tracked.add("lib/LICENSE-MySQL-Connector-J.txt");
         Files.createDirectories(previousList.getParent());
         Files.write(previousList,tracked,StandardCharsets.UTF_8);
         return count + (jdbc ? 1 : 0);
