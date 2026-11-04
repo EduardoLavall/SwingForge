@@ -21,6 +21,7 @@ public final class Dark {
         UIManager.put("TableHeader.background",PANEL2);UIManager.put("TableHeader.foreground",TEXT);
         UIManager.put("List.background",PANEL);UIManager.put("List.foreground",TEXT);
         UIManager.put("List.selectionBackground",new Color(65,59,101));
+        UIManager.put("List.selectionForeground",TEXT);
         UIManager.put("ScrollPane.background",BG);
         UIManager.put("ComboBox.background",PANEL2);UIManager.put("ComboBox.foreground",TEXT);
         UIManager.put("CheckBox.background",BG);UIManager.put("CheckBox.foreground",TEXT);

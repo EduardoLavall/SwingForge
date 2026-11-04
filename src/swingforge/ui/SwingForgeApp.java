@@ -67,7 +67,7 @@ public final class SwingForgeApp extends JFrame {
         side.setPreferredSize(new Dimension(248,200));
         side.add(Dark.label("Entidades",17,false),BorderLayout.NORTH);
         lista.setFont(new Font("Dialog",Font.PLAIN,15));lista.setBackground(Dark.PANEL);lista.setForeground(Dark.TEXT);
-        lista.setFixedCellHeight(42);lista.setSelectionBackground(new Color(65,59,101));
+        lista.setFixedCellHeight(42);lista.setSelectionBackground(new Color(65,59,101));lista.setSelectionForeground(Dark.TEXT);
         JScrollPane scroll=new JScrollPane(lista);scroll.setBorder(null);side.add(scroll,BorderLayout.CENTER);
         JPanel actions=new JPanel(new GridLayout(2,1,0,8));actions.setBackground(Dark.PANEL);
         JButton plus=Dark.button("+  Nova entidade",true),remove=Dark.button("Remover entidade",false);
@@ -222,7 +222,16 @@ public final class SwingForgeApp extends JFrame {
             }
             @Override protected void process(List<String> chunks){for(String line:chunks){log.append(line+"\n");log.setCaretPosition(log.getDocument().getLength());}}
             @Override protected void done(){busy=false;gerar.setEnabled(true);compilar.setEnabled(true);executar.setEnabled(true);
-                try{int exit=get();if(exit==0){message(run?"Programa encerrado sem erros.":"Compilacao aprovada. Validacao com MySQL real ainda e manual.");}
+                try{int exit=get();if(exit==0){
+                    if(run)message("Programa encerrado sem erros.");
+                    else {
+                        Path jar=folder.resolve("dist").resolve(spec.name+".jar");
+                        Path sql=folder.resolve("sql/01_criar_banco.sql");
+                        if(Files.isRegularFile(jar)&&Files.isRegularFile(sql))
+                            message("Compilacao + verificacao dos artefatos: OK. Teste CRUD com MySQL real: pendente.");
+                        else message("Ant terminou, mas nao foram encontrados todos os artefatos previstos.");
+                    }
+                }
                     else message("Ant retornou codigo "+exit+". Consulte os detalhes acima.");}
                 catch(Exception ex){error("Nao foi possivel executar Ant. Instale-o ou coloque a distribuicao offline em tools/ant.",ex);}
             }
