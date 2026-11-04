@@ -204,36 +204,92 @@ public final class SwingForgeApp extends JFrame {
     private void run(){if(root==null){JOptionPane.showMessageDialog(this,"Gere o projeto primeiro.");return;}launchCommand(true);}
     private void launchCommand(final boolean run){
         if(busy)return;
+        final Path folder=root;
         String antPath="ant";
-        Path local=root.resolve(System.getProperty("os.name").toLowerCase().contains("win")?
+        Path local=folder.resolve(System.getProperty("os.name").toLowerCase().contains("win")?
                 "tools/ant/bin/ant.bat":"tools/ant/bin/ant");
         if(Files.isRegularFile(local))antPath=local.toAbsolutePath().toString();
         final List<String> command=new ArrayList<String>();command.add(antPath);
         if(!run){command.add("clean");command.add("jar");}else{command.add("run");}
-        final Path folder=root;
         busy=true;gerar.setEnabled(false);compilar.setEnabled(false);executar.setEnabled(false);
-        message(run?"Executando sistema...":"Compilando projeto com Apache Ant...");
+        message(run?"Executando sistema...":"Compilando projeto...");
         new SwingWorker<Integer,String>(){
-            @Override protected Integer doInBackground() throws Exception {
-                ProcessBuilder pb=new ProcessBuilder(command);pb.directory(folder.toFile());pb.redirectErrorStream(true);
-                Process p=pb.start();try(BufferedReader reader=new BufferedReader(new InputStreamReader(p.getInputStream(),StandardCharsets.UTF_8))){
-                    String line;while((line=reader.readLine())!=null)publish(line);}
+            private int execute(List<String> args) throws Exception {
+                ProcessBuilder pb=new ProcessBuilder(args);
+                pb.directory(folder.toFile());pb.redirectErrorStream(true);
+                Process p=pb.start();
+                try(BufferedReader reader=new BufferedReader(new InputStreamReader(p.getInputStream(),StandardCharsets.UTF_8))){
+                    String line;while((line=reader.readLine())!=null)publish(line);
+                }
                 return p.waitFor();
             }
-            @Override protected void process(List<String> chunks){for(String line:chunks){log.append(line+"\n");log.setCaretPosition(log.getDocument().getLength());}}
-            @Override protected void done(){busy=false;gerar.setEnabled(true);compilar.setEnabled(true);executar.setEnabled(true);
-                try{int exit=get();if(exit==0){
-                    if(run)message("Programa encerrado sem erros.");
-                    else {
-                        Path jar=folder.resolve("dist").resolve(spec.name+".jar");
-                        Path sql=folder.resolve("sql/01_criar_banco.sql");
-                        if(Files.isRegularFile(jar)&&Files.isRegularFile(sql))
-                            message("Compilacao + verificacao dos artefatos: OK. Teste CRUD com MySQL real: pendente.");
-                        else message("Ant terminou, mas nao foram encontrados todos os artefatos previstos.");
-                    }
+            private String jdkTool(String tool){
+                String ext=System.getProperty("os.name").toLowerCase().contains("win")?".exe":"";
+                Path home=Paths.get(System.getProperty("java.home"));
+                Path candidate=home.resolve("bin").resolve(tool+ext);
+                if(Files.isRegularFile(candidate))return candidate.toString();
+                Path parent=home.getParent();
+                if(parent!=null){candidate=parent.resolve("bin").resolve(tool+ext);
+                    if(Files.isRegularFile(candidate))return candidate.toString();}
+                return tool;
+            }
+            private int withoutAnt() throws Exception {
+                publish("Apache Ant nao encontrado. Usando javac do JDK local...");
+                Path main=folder.resolve("src").resolve(spec.pkg.replace('.', '/')).resolve("Main.java");
+                if(!Files.isRegularFile(main))throw new java.io.IOException("Classe Main.java nao encontrada no projeto.");
+                Files.createDirectories(folder.resolve("build/classes"));
+                List<String> javacCommand=new ArrayList<String>();
+                javacCommand.add(jdkTool("javac"));
+                javacCommand.add("-encoding");javacCommand.add("UTF-8");
+                javacCommand.add("-source");javacCommand.add("8");
+                javacCommand.add("-target");javacCommand.add("8");
+                javacCommand.add("-cp");javacCommand.add("lib/*");
+                javacCommand.add("-sourcepath");javacCommand.add("src");
+                javacCommand.add("-d");javacCommand.add("build/classes");
+                javacCommand.add(main.toString());
+                int exit;
+                try { exit=execute(javacCommand); }
+                catch(java.io.IOException ex){
+                    throw new java.io.IOException("JDK/javac nao encontrado. Instale um JDK offline ou adicione Apache Ant.",ex);
                 }
-                    else message("Ant retornou codigo "+exit+". Consulte os detalhes acima.");}
-                catch(Exception ex){error("Nao foi possivel executar Ant. Instale-o ou coloque a distribuicao offline em tools/ant.",ex);}
+                if(exit!=0)return exit;
+                if(run){
+                    publish("Codigo compilado. Abrindo o sistema...");
+                    return execute(java.util.Arrays.asList(jdkTool("java"),"-cp",
+                            "build/classes"+java.io.File.pathSeparator+"lib/*",spec.pkg+".Main"));
+                }
+                Files.createDirectories(folder.resolve("dist"));
+                try { return execute(java.util.Arrays.asList(jdkTool("jar"),"cfe",
+                        "dist/"+spec.name+".jar",spec.pkg+".Main","-C","build/classes",".")); }
+                catch(java.io.IOException ex){
+                    throw new java.io.IOException("Comando jar do JDK nao encontrado. Instale um JDK completo offline.",ex);
+                }
+            }
+            @Override protected Integer doInBackground() throws Exception {
+                try { return execute(command); }
+                catch(java.io.IOException missingAnt){return withoutAnt();}
+            }
+            @Override protected void process(List<String> chunks){
+                for(String line:chunks){log.append(line+"\n");log.setCaretPosition(log.getDocument().getLength());}
+            }
+            @Override protected void done(){
+                busy=false;gerar.setEnabled(true);compilar.setEnabled(true);executar.setEnabled(true);
+                try{
+                    int exit=get();
+                    if(exit==0){
+                        if(run)message("Programa encerrado sem erros.");
+                        else {
+                            Path jar=folder.resolve("dist").resolve(spec.name+".jar");
+                            Path sql=folder.resolve("sql/01_criar_banco.sql");
+                            if(Files.isRegularFile(jar)&&Files.isRegularFile(sql))
+                                message("Compilacao + verificacao dos artefatos: OK. CRUD com MySQL real: nao testado.");
+                            else message("Compilacao terminou, mas faltam artefatos previstos.");
+                        }
+                    } else message("Compilacao/execucao retornou codigo "+exit+". Veja os detalhes acima.");
+                } catch(Exception ex){
+                    Throwable cause=ex.getCause()==null?ex:ex.getCause();
+                    error("Falha na compilacao ou execucao",new Exception(cause.getMessage(),cause));
+                }
             }
         }.execute();
     }

@@ -158,11 +158,23 @@ public final class Generator {
            "test/\ntests/\n*.log\n.env\n.env.*\n.idea/\n.vscode/\n");
         files.put("lib/DRIVER_MYSQL.txt","Copie o mysql-connector-j-*.jar nesta pasta.\n"+
             "O projeto funciona offline com MySQL local, mas o driver JDBC deve estar disponivel previamente.\n");
-        files.put("run.bat","@echo off\r\ncd /d \"%~dp0\"\r\n"+
+        String mainSource="src/"+spec.pkg.replace('.', '/')+"/Main.java";
+        files.put("run.bat", "@echo off\r\nsetlocal EnableExtensions\r\ncd /d \"%~dp0\"\r\n"+
             "if exist \"tools\\ant\\bin\\ant.bat\" (call \"tools\\ant\\bin\\ant.bat\" run & goto :end)\r\n"+
-            "where ant >nul 2>&1\r\nif errorlevel 1 (echo Apache Ant ausente. Instale previamente ou inclua em tools\\ant. & pause & exit /b 1)\r\n"+
-            "call ant run\r\n:end\r\nif errorlevel 1 pause\r\n");
-        files.put("run.sh","#!/bin/sh\nset -eu\ncd \"$(dirname \"$0\")\"\nif [ -x tools/ant/bin/ant ]; then tools/ant/bin/ant run; else ant run; fi\n");
+            "where ant >nul 2>&1\r\nif not errorlevel 1 (call ant run & goto :end)\r\n"+
+            "where javac >nul 2>&1\r\nif errorlevel 1 (echo [ERRO] JDK/javac nao encontrado. Instale um JDK offline. & pause & exit /b 1)\r\n"+
+            "if not exist \"build\\classes\" mkdir \"build\\classes\"\r\n"+
+            "javac -encoding UTF-8 -source 8 -target 8 -cp \"lib\\*\" -sourcepath \"src\" -d \"build\\classes\" \""+mainSource.replace('/', '\\')+"\"\r\n"+
+            "if errorlevel 1 goto :end\r\n"+
+            "java -cp \"build\\classes;lib\\*\" "+spec.pkg+".Main\r\n"+
+            ":end\r\nif errorlevel 1 pause\r\n");
+        files.put("run.sh", "#!/bin/sh\nset -eu\ncd \"$(dirname \"$0\")\"\n"+
+            "if [ -x tools/ant/bin/ant ]; then exec tools/ant/bin/ant run; fi\n"+
+            "if command -v ant >/dev/null 2>&1; then exec ant run; fi\n"+
+            "if ! command -v javac >/dev/null 2>&1; then echo '[ERRO] JDK/javac ausente.' >&2; exit 1; fi\n"+
+            "mkdir -p build/classes\n"+
+            "javac -encoding UTF-8 -source 8 -target 8 -cp 'lib/*' -sourcepath src -d build/classes '"+mainSource+"'\n"+
+            "exec java -cp 'build/classes:lib/*' "+spec.pkg+".Main\n");
         files.put("swingforge.json",ProjectStore.serialize(spec));
         return files;
     }
